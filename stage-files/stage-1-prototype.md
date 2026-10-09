@@ -164,4 +164,49 @@
 - The landing page spec has not been provided yet — `docs/design-theme.md` has a placeholder section to fill in when it arrives.
 - shadcn init changed `--font-sans: var(--font-geist-sans)` to `--font-sans: var(--font-sans)` in `globals.css`, while `src/app/layout.tsx` still binds Geist via the `--font-geist-sans` variable. Fonts still render via the `@layer base` default, but a future session should reconcile the font variable names when the landing page typography is decided.
 
+---
+
+## 2026-10-10 — Landing Page (Step 0 cleanup + write-on title, holographic CTA, shader crossfade)
+
+**Prompt (summarized):** Step 0 cleanup (remove the stray `cn` package if unused, fix the self-referencing `--font-sans` from shadcn init by loading Inter as `--font-sans` and Mrs Saint Delafield as `--font-script` in the root layout, set html/body background to `#030303`), then build the landing page at `src/app/page.tsx` reusing `spotlight-cursor` and `red-black-vanila`: near-black full-screen state, one-line "Rabbit Hole" logo ("Rabbit" in signature script at 1.3× the size of "Hole", "Hole" Inter 800 white), a write-on mask-wipe entrance gated on `document.fonts.ready` with reduced-motion / no-JS / no-mask-image fallbacks, a holographic "Fall in" pill button, a red-tinted spotlight cursor on fine pointers only, and a click that crossfades the black background to the WebGL shader over ~1.2s with a CSS gradient fallback, fading out button and spotlight. No new libraries, shader uniforms untouched, verify in dev at mobile and desktop widths, update the design doc, log, and commit as "feat: landing page".
+
+**Files touched:**
+- `package.json` (modified, removed the directly-installed `cn` package that shadcn init had added; nothing imported it)
+- `package-lock.json` (modified, `cn@0.4.0` removed; `clsx` and `tailwind-merge` recorded as direct dependencies)
+- `src/lib/utils.ts` (modified, `cn()` now implemented with `clsx` + `tailwind-merge` instead of re-exporting the `cn` package)
+- `src/components/ui/button.tsx` (modified, imports `cn` from `@/lib/utils` instead of the removed `cn` package)
+- `src/app/layout.tsx` (modified, Inter as `--font-sans` and Mrs_Saint_Delafield (weight 400) as `--font-script`, both variables on `<html>`, Geist bindings removed, `suppressHydrationWarning` added because the landing boot script mutates `<html>`'s class before hydration)
+- `src/app/globals.css` (modified, self-referencing `--font-sans: var(--font-sans)` and dead `--font-mono: var(--font-geist-mono)` mappings removed; background `#030303` + `color-scheme: dark` on `:root`, `bg-background` on html; landing styles appended: `@property --rh-wipe`, title/CTA/shader classes, wipe transitions, reduced-motion overrides)
+- `src/app/page.tsx` (modified, replaced the scaffold nav index with the landing page: an inline pre-paint boot script plus the `Landing` client component)
+- `src/components/landing.tsx` (new, the interactive landing page: fonts-ready gating, fine-pointer spotlight mounting, click-to-enter state machine, title + CTA markup)
+- `docs/design-theme.md` (modified, replaced the landing-spec placeholder with the spec as actually built)
+- `stage-files/stage-1-prototype.md` (modified, appended this log entry)
+
+**What changed:**
+- Step 0: `npm ls` showed `cn@0.2.6` only as a transitive dependency of the `shadcn` CLI itself (via `@shadcn/registry`), so it stays; the directly-installed `cn@0.4.0` was gone from `package.json`, nothing in `src/` imported `"cn"` anymore, and `src/lib/utils.ts` provides the standard clsx + tailwind-merge `cn()`.
+- Font fix: the root layout now binds Inter (all weights, variable font) as `--font-sans` and Mrs Saint Delafield (weight 400, non-variable) as `--font-script`, both applied on `<html>`. The self-referencing `@theme inline` mapping was deleted rather than re-added, so no CSS variable references itself; the `font-sans` utility still resolves to Inter because next/font's generated variable class is unlayered and therefore beats Tailwind's `@layer theme` `:root` default on the html element (verified in the built CSS).
+- Landing page: `src/app/page.tsx` is a server component whose only job is to emit an inline blocking `<script>` ahead of the content (runs during HTML parsing, before first paint) that picks the animation mode — `rh-anim` when `mask-image` is supported, `rh-anim-fade` when not, nothing when `prefers-reduced-motion` — and adds `rh-begin` when `document.fonts.ready` resolves, so the script text can never flash in a fallback font. With JS disabled or reduced motion, no classes are added and everything is simply visible. `src/components/landing.tsx` re-applies those classes in a `useLayoutEffect` (covers React Strict Mode's dev remount clearing `<html>` attributes, per the Next 16 "preventing flash before hydration" guide, and soft navigations back to `/`).
+- Write-on entrance: a registered custom property `--rh-wipe` (initial -12%, animating to 112%) drives a feathered (~8%) `mask-image` linear-gradient (with `-webkit-` prefix) swept via CSS transitions — "Rabbit" 2.2s ease-in-out, "Hole" 0.8s starting ~1.9s in, the CTA wrapper fades in at ~3s. Both title spans carry `0.3em` padding / `-0.3em` margin (layout-neutral) so Mrs Saint Delafield's swashes overflow the text box without being clipped by the mask box.
+- Title: `h1` with `aria-label="Rabbit Hole"` (spans `aria-hidden`), flex `align-items: baseline`, "Rabbit" in the script font at 1.3× the "Hole" size (script x-height is small) in chili red with a soft dark text-shadow `0 2px 30px rgba(0,0,0,.6)` for legibility over the red shader; "Hole" Inter 800, white, `letter-spacing: -0.02em`, `clamp(3rem, 11vw, 8rem)`.
+- CTA: a plain `<button>` (deliberately not the shadcn Button) — pill, holographic 135° white→peach→blush gradient, wine text, 14px semibold, `px-6 py-3`, inset top highlight + soft peach glow, hover `translateY(-1px)` with stronger `rgba(205,28,24,.35)` glow, `focus-visible` peach outline; keyboard activation is native.
+- Spotlight: the pre-built canvas cursor mounted only when `(pointer: fine)` matches (hidden on touch/coarse pointers), config `color #CD1C18, brightness 0.18, radius 220`.
+- Click ("Fall in"): mounts the pre-built `ShaderBackground` (uniforms untouched) only after the click, inside a fixed layer that carries the CSS fallback gradient `#38000A → #9B1313` (visible if WebGL is unavailable) and crossfades in from opacity 0 over 1.2s; the button and spotlight fade out (~0.7s) and then unmount (button leaves the a11y tree/tab order); the title stays; no navigation happens; a reload resets to the black state because nothing is persisted.
+
+**Why:**
+- Executes the landing page spec: a cinematic "fall down the rabbit hole" opening beat (signature-script "Rabbit" being inked on, heavy upright "Hole", holographic CTA) that establishes the brand typography and chili palette before any product UI.
+- The fonts-ready gating, inline pre-paint script, and layered fallbacks exist so the entrance degrades gracefully everywhere: reduced motion → static, no `mask-image` → plain fades, no JS → fully visible text, no WebGL → CSS gradient.
+- Followed the repo constraint of no new libraries: everything is CSS + the two pre-saved components, and the shader's uniforms were left untouched.
+
+**Result:**
+- `npm run dev` served the page (HTTP 200) with the boot script, title spans, `aria-label`, and CTA present in the served HTML; browser-level visual verification (write-on animation, hover glow, click transition at mobile and desktop widths) was deferred to the author per instruction.
+- `npm run build` passes: TypeScript clean, all 7 routes prerender statically.
+- The built CSS was inspected: no `--font-sans` self-reference or Geist references remain, the `@property --rh-wipe` registration, both `mask-image` prefixes, the `#030303` background, and the unlayered next/font variable classes (which make `font-sans` resolve to Inter) are all present.
+- `npx eslint` on all touched files is clean; repo-wide `npm run lint` reports one pre-existing error in `src/app/feed/page.tsx` (setState-in-effect from an earlier session, untouched by this work).
+
+**Open questions:**
+- Does Mrs Saint Delafield's swash overflow exceed the 0.3em mask padding at the largest title size in practice? If any flourish looks clipped after the wipe settles, the padding needs a bump (or the mask should be dropped after the transition ends) — needs the author's visual check.
+- Is "Rabbit" legible enough against the shader's red areas with the current dark text-shadow, or does it need a stronger treatment? (Spec says report rather than change the colour.)
+- The "Fall in" label is a placeholder — what does the CTA do next (route to `/onboarding`, auth, age gate)? Nothing is wired yet.
+- How should the entrance behave on repeat visits (skip the 3s sequence after the first time, or always play)? Currently it always plays.
+
 
