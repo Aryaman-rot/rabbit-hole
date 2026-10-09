@@ -1,143 +1,94 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
-interface Slide {
-  badge: string;
-  title: string;
-  description: string;
-  highlight: string;
-}
-
-const slides: Slide[] = [
+const slides = [
   {
-    badge: "01 / The Problem",
-    title: "Dating apps monetize staying single.",
-    description:
-      "Traditional dating apps thrive when you stay lonely. Endless swiping, superficial matches, and zero accountability are deliberate features of a business model built to keep you scrolling.",
-    highlight: "Swiping is engagement for them, not outcomes for you.",
+    headline: "Most dating apps want you to stay.",
+    body: "Their business works best when you keep swiping.",
   },
   {
-    badge: "02 / The Shift",
-    title: "We reward you for leaving the app.",
-    description:
-      "Rabbit Hole flips the incentive entirely. Our core currency is verified real-world dates, not swipe volume or screen time. When you actually meet up offline, your profile and compatibility level up.",
-    highlight: "Success means getting off your phone and onto real dates.",
+    headline: "We reward you for actually meeting people.",
+    body: "Real dates are what move things forward here, not time spent in the app.",
   },
   {
-    badge: "03 / The Standard",
-    title: "Zero ghosting. Mutual accountability.",
-    description:
-      "No public leaderboards, toxic rankings, or artificial streaks. Just genuine connection, double-confirmed meetups, and real consequences for ghosting. Built to get you into the real world.",
-    highlight: "Dates double-confirmed by both people in real life.",
+    headline: "Meet, then tell us how it went.",
+    body: "A quick confirmation after a date is all it takes. Nothing public, no rankings.",
   },
 ];
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const [currentSlide, setCurrentSlide] = useState(0);
+  const [current, setCurrent] = useState(0);
 
-  const isLast = currentSlide === slides.length - 1;
-
-  const handleNext = () => {
-    if (isLast) {
-      router.push("/quiz");
-    } else {
-      setCurrentSlide((prev) => prev + 1);
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentSlide > 0) {
-      setCurrentSlide((prev) => prev - 1);
-    }
-  };
-
-  const slide = slides[currentSlide];
+  const isLast = current === slides.length - 1;
 
   return (
-    <main className="flex min-h-screen flex-col justify-between p-6 sm:p-8 max-w-md mx-auto">
-      {/* Top Header & Progress */}
-      <header className="flex items-center justify-between pt-4">
-        <span className="text-xs font-semibold tracking-wider uppercase text-foreground/50">
-          Rabbit Hole
-        </span>
-        <div className="flex items-center gap-1.5">
-          {slides.map((_, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => setCurrentSlide(idx)}
-              aria-label={`Go to slide ${idx + 1}`}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                idx === currentSlide
-                  ? "w-8 bg-foreground"
-                  : "w-2 bg-foreground/20"
-              }`}
-            />
-          ))}
-        </div>
-        <Link
-          href="/quiz"
-          className="text-xs font-medium text-foreground/50 hover:text-foreground transition-colors"
-        >
-          Skip
-        </Link>
-      </header>
+    <main className="flex min-h-dvh w-full items-center justify-center p-4 sm:p-6">
+      <section className="rh-glass w-full max-w-md p-6 sm:p-8">
+        <header className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            {slides.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                aria-label={`Go to slide ${idx + 1}`}
+                aria-current={idx === current ? "step" : undefined}
+                onClick={() => setCurrent(idx)}
+                className={cn(
+                  "rh-focus rh-dot",
+                  idx === current && "rh-dot-active",
+                )}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            className="rh-focus rh-quiet"
+            onClick={() => router.push("/signup")}
+          >
+            Skip
+          </button>
+        </header>
 
-      {/* Main Slide Content */}
-      <section className="my-auto py-8">
-        <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-foreground/5 text-foreground/70 mb-4 border border-foreground/10">
-          {slide.badge}
-        </span>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground leading-tight">
-          {slide.title}
-        </h1>
-        <p className="mt-4 text-base text-foreground/70 leading-relaxed">
-          {slide.description}
-        </p>
-        <div className="mt-6 p-4 rounded-xl border border-foreground/10 bg-foreground/[0.02]">
-          <p className="text-sm font-medium text-foreground/90 italic">
-            &ldquo;{slide.highlight}&rdquo;
+        <div key={current} className="rh-slide my-8 sm:my-10">
+          <h1 className="text-2xl leading-tight font-bold text-white sm:text-3xl">
+            {slides[current].headline}
+          </h1>
+          <p className="mt-4 text-base leading-relaxed text-primary-soft">
+            {slides[current].body}
           </p>
         </div>
-      </section>
 
-      {/* Navigation Footer */}
-      <footer className="flex flex-col gap-3 pb-6">
-        <div className="flex items-center gap-3">
-          {currentSlide > 0 && (
+        <footer className="flex items-center justify-between gap-3">
+          {current > 0 ? (
             <button
               type="button"
-              onClick={handlePrev}
-              className="px-5 py-3 rounded-xl border border-foreground/20 text-sm font-semibold text-foreground hover:bg-foreground/5 transition-colors"
+              className="rh-focus rh-quiet"
+              onClick={() => setCurrent((c) => c - 1)}
             >
               Back
             </button>
-          )}
-          {isLast ? (
-            <Link
-              href="/quiz"
-              className="flex-1 text-center py-3.5 px-6 rounded-xl bg-foreground text-background font-semibold text-sm hover:opacity-90 transition-opacity"
-            >
-              Get Started
-            </Link>
           ) : (
-            <button
-              type="button"
-              onClick={handleNext}
-              className="flex-1 py-3.5 px-6 rounded-xl bg-foreground text-background font-semibold text-sm hover:opacity-90 transition-opacity"
-            >
-              Next
-            </button>
+            <span aria-hidden="true" />
           )}
-        </div>
-        <p className="text-center text-xs text-foreground/40">
-          Step {currentSlide + 1} of {slides.length}
-        </p>
-      </footer>
+          <button
+            type="button"
+            className="rh-focus rh-primary-btn"
+            onClick={() => {
+              if (isLast) {
+                router.push("/signup");
+              } else {
+                setCurrent((c) => c + 1);
+              }
+            }}
+          >
+            {isLast ? "Get started" : "Next"}
+          </button>
+        </footer>
+      </section>
     </main>
   );
 }

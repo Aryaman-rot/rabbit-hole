@@ -82,10 +82,38 @@ transition — never unmounted or `display: none`).
 Hover: the pre-built spotlight cursor canvas mounts only on fine pointers,
 config `color #CD1C18, brightness 0.18, radius 220`.
 
-Click: mounts the pre-built WebGL `ShaderBackground` (uniforms untouched) only
-after the click, behind a CSS fallback gradient `#38000A → #9B1313`
-(`--color-wine` → `--color-primary-deep`) that shows if WebGL fails; the layer
-crossfades in over the black page in 1.2s. Button fades out and hides
-(visibility, still mounted); the spotlight fades and unmounts; the title stays
-exactly where it was; nothing navigates. Reload resets to the
-black state (no persistence).
+Click: the CTA calls `fall()` on the root `BackgroundProvider`
+(`src/components/background-provider.tsx`), which owns ONE persistent
+`ShaderBackground` for the whole app (uniforms untouched) inside a fixed
+`-z-10` wrapper with the CSS fallback gradient `#38000A → #9B1313`
+(`--color-wine` → `--color-primary-deep`) that shows if WebGL fails. The layer
+crossfades in over the black page in 1.2s (`opacity` transition). The shader is
+visible on any route other than "/" and after `fall()`; returning to "/" fades
+it back to the black state. The landing click awaits the crossfade, then pushes
+to `/onboarding`. Button fades out and hides (visibility, still mounted); the
+spotlight fades and unmounts; the title stays exactly where it was until the
+push. Reload resets to the black state (no persistence).
+
+Note: `body` no longer sets `bg-background` — a body background paints over a
+negative-z canvas. The black comes from `html` alone, behind the shader layer.
+
+## Onboarding pitch + signup placeholder (as built)
+
+Panel (`.rh-glass`, both `/onboarding` and `/signup`): wine `rgba(56, 0, 10,
+0.8)` with `backdrop-filter: blur(12px)`, a soft peach border
+(`rgba(255, 168, 150, 0.22)`), `border-radius: 1.5rem`, `max-w-md`, centered,
+mobile-first. Opacity started at 70% but was **raised to 80% for legibility**:
+measured over the shader's brightest (near-cream `#FFF7E5`) areas, peach body
+text fell to 4.02:1 contrast at 70%, and reaches 5.63:1 at 80% (white headline
+10.46:1). Keep the panel at 0.8 or higher — the shader's palette reaches
+near-white, so anything more transparent puts body text below AA.
+
+Onboarding: three slides with a short opacity fade (`.rh-slide`, 0.25s, none
+under reduced motion). Headline is Inter bold white; body copy is peach
+(`text-primary-soft`). Progress dots (`.rh-dot`, peach; active one elongates),
+"Next" is a solid chili-red pill with white text (`.rh-primary-btn`, deep red on
+hover), "Back" and "Skip" are quiet peach text buttons (`.rh-quiet`). Final
+slide's button reads "Get started" and routes to `/signup`, which is a
+placeholder glass panel reading "Sign up is coming next". All controls are real
+buttons/links with a visible peach focus ring (`.rh-focus:focus-visible`,
+2px outline).

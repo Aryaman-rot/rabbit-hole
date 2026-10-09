@@ -231,3 +231,40 @@ A defect found while verifying: the first placement of the .rh-exited rule came 
 pm run build passes.
 
 **Open questions:** none for this fix — the earlier visual checks (swash clipping within the 0.3em mask padding, "Rabbit" legibility over the shader) still stand.
+
+---
+
+## 2026-10-10 — Persistent Shader Layout + Onboarding Pitch Restyle
+
+**Prompt (summarized):** Move ownership of the WebGL shader out of the landing page and into the root layout via a client BackgroundProvider that renders one persistent ShaderBackground behind all pages and exposes all() from context (shader visible when the route is not "/" or after all(); landing click crossfades then pushes to /onboarding; returning to "/" resets to black; exactly one WebGL canvas across the navigation; fixed -z-10 wrapper). Rebuild /onboarding as 3 slides on a wine glass panel with exact new copy, a /signup placeholder on the same panel, progress dots, primary/quiet buttons, short opacity slide transition honouring reduced motion, and keyboard/visible focus rings. Check panel text legibility against the shader's brightest areas and raise panel opacity if needed. Verify with a headless browser; build; commit as "feat: persistent shader layout + onboarding pitch". Quiz, feed, chat, dashboard and firebase.ts explicitly untouched.
+
+**Files touched:**
+- src/components/background-provider.tsx (new, "use client": owns the single ShaderBackground in a fixed -z-10 wrapper; isible = fallen || pathname !== "/"; resets allen when the pathname becomes "/" during render (not in an effect, to satisfy the lint rule); exposes all(): Promise<void> that resolves after the 1.2s crossfade, or immediately under reduced motion)
+- src/components/inline-script.tsx (new, the official Next helper for the landing boot script: 	ype="text/javascript" on the server, 	ext/plain on the client)
+- src/app/layout.tsx (wrapped {children} in <BackgroundProvider>)
+- src/app/page.tsx (boot script now rendered via InlineScript)
+- src/app/globals.css (ody no longer sets g-background — it would paint over a negative-z canvas; html keeps it. Shader layer changed from a mount-time @keyframes fade to a persistent .rh-bg/.rh-bg-on opacity transition. Added .rh-glass, .rh-focus, .rh-primary-btn, .rh-quiet, .rh-dot, .rh-slide styles; reveal animations replaced the CSS-opacity "rh-begin" trick with @keyframes rh-reveal ... forwards so the entrance replays on soft-nav returns; exit rules gained nimation: none)
+- src/components/landing.tsx (no longer imports/mounts ShaderBackground; click now calls all() then outer.push("/onboarding"))
+- src/app/onboarding/page.tsx (rebuilt: 3-slide glass pitch with the exact copy, dots, primary "Next"/"Get started", quiet "Back"/"Skip", keyed slide fade, focus rings; final button and Skip route to /signup)
+- src/app/signup/page.tsx (new placeholder glass panel: "Sign up is coming next")
+- docs/design-theme.md (documented the persistent-shader model, the body-background caveat, and the onboarding/signup panel spec incl. the legibility numbers)
+- stage-files/stage-1-prototype.md (appended this entry)
+
+**Why:**
+- Moving the shader into the root layout makes it a single, long-lived WebGL context that survives navigation, so the landing-to-onboarding transition doesn't tear down and rebuild a canvas, and every screen shares the same animated backdrop.
+- The -z-10 fixed wrapper keeps pages (which sit at z-10/in-flow) above the shader; this required moving the black background to html only, since a ody background would paint over a negative-z canvas.
+- The onboarding panel needed a legibility pass: the shader palette reaches near-white cream, which a 70%-opacity wine panel couldn't mask.
+
+**Result:**
+- Headless-Edge verification (playwright-core, installed --no-save and removed after): exactly ONE WebGL canvas at every step — landing, mid-crossfade, /onboarding, /signup, direct-load /onboarding, and mobile landing?onboarding; title getBoundingClientRect().top unchanged across the click (365.296875); crossfade measured mid-transition (bgOpacity ~0.68–0.70); returning to "/" drives bgOpacity back to 0 (black reset); opening /onboarding directly shows the shader at full opacity immediately.
+- Onboarding: all 3 slides advance at 1440px and 390px; Back and progress dots work; "Get started" and Skip route to /signup; pixel sampling confirmed the shader renders behind the panel (red/cream corners) and back-to-landing is uniformly #030303.
+- Legibility: body-text (peach) contrast over the shader's brightest sampled areas improved from 4.02:1 (70% panel — below AA) to 5.63:1 at 80%; white headline 10.46:1.
+- Accessibility: keyboard Tab focuses the CTA with a visible peach focus ring and Enter activates it (navigates to /onboarding); the primary button shows a 2px peach :focus-visible outline; under prefers-reduced-motion the title has mask-image: none, the button is immediately visible, and the shader crossfade is skipped.
+- 
+pm run build passes (8 static routes including /signup); ESLint clean on all touched files.
+
+**Open questions:**
+- "Skip" on onboarding was implemented as a route to /signup (same destination as "Get started"); confirm that's the intent.
+- The persistent shader keeps rendering (time-animated) even while hidden on "/" (opacity 0) — acceptable for the prototype, but a pause-when-hidden optimization could be added later without touching the uniforms.
+- The old onboarding linked onward to /quiz; the new copy routes to /signup instead, so /quiz is currently only reachable by URL until the signup flow lands.
+- A React dev-only console notice about a rendered <script> (no functional impact; the documented InlineScript helper is already in use).

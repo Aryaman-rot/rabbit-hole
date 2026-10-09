@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Component as SpotlightCursor } from "@/components/ui/spotlight-cursor";
-import { ShaderBackground } from "@/components/ui/red-black-vanila";
+import { useBackground } from "@/components/background-provider";
 import { cn } from "@/lib/utils";
 
 const spotlightConfig = {
@@ -12,6 +13,8 @@ const spotlightConfig = {
 };
 
 export function Landing() {
+  const router = useRouter();
+  const { fall } = useBackground();
   const [finePointer, setFinePointer] = useState(false);
   const [entered, setEntered] = useState(false);
   const [settled, setSettled] = useState(false);
@@ -56,16 +59,15 @@ export function Landing() {
     return () => window.clearTimeout(t);
   }, [entered]);
 
+  const handleFallIn = () => {
+    setEntered(true);
+    fall().then(() => {
+      router.push("/onboarding");
+    });
+  };
+
   return (
     <>
-      {entered && (
-        <div
-          aria-hidden="true"
-          className="rh-shader-fade pointer-events-none fixed inset-0 z-0"
-        >
-          <ShaderBackground className="absolute inset-0" />
-        </div>
-      )}
       {finePointer && !settled && (
         <SpotlightCursor
           config={spotlightConfig}
@@ -85,11 +87,7 @@ export function Landing() {
           </span>
         </h1>
         <div className={cn("rh-fall-in", entered && "rh-exited")}>
-          <button
-            type="button"
-            className="rh-cta"
-            onClick={() => setEntered(true)}
-          >
+          <button type="button" className="rh-cta" onClick={handleFallIn}>
             Fall in
           </button>
         </div>
