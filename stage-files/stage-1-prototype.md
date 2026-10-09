@@ -124,4 +124,44 @@
 - When real Firestore integration is introduced, how will mutual matches be coordinated across two different user documents (e.g. subcollections vs top-level match documents)?
 - In the next iteration of the chat screen, should conversations have an inactivity or date-proposal countdown to discourage lingering in digital pen-pal mode?
 
+---
+
+## 2026-10-10 — shadcn/ui Setup, Chili Theme Tokens, Landing Components
+
+**Prompt (summarized):** Run `npx shadcn@latest init` with defaults, verify the two pre-saved landing-page components in `src/components/ui/`, fix a bug in `spotlight-cursor.tsx` where an undefined `className` rendered the literal class `"undefined"`, register the four "chili spice" brand colours as Tailwind v4 `@theme` tokens, record the design system in `docs/design-theme.md`, and get `npm run build` passing — without touching the existing route stubs, `src/lib/firebase.ts`, or any prior work.
+
+**Files touched:**
+- `components.json` (new, shadcn config: style `base-nova`, base color `neutral`, CSS variables on, aliases `@/components`, `@/lib/utils`, icon library lucide)
+- `package.json` (modified, shadcn init added dependencies: `@base-ui/react`, `class-variance-authority`, `cn`, `lucide-react`, `shadcn`, `tw-animate-css`)
+- `package-lock.json` (modified, lockfile updated for the new dependencies)
+- `src/app/globals.css` (modified, shadcn init rewrote it: added `tw-animate-css` and `shadcn/tailwind.css` imports, a `@custom-variant dark` rule, a full neutral oklch design-token set in `:root`/`.dark` (background, card, popover, primary, secondary, muted, accent, destructive, border, input, ring, chart-1..5, sidebar-*), a radius scale, and `@layer base` defaults replacing the old `body` rule; then this session added a `@theme` block with the four brand tokens `--color-primary: #CD1C18`, `--color-primary-soft: #FFA896`, `--color-primary-deep: #9B1313`, `--color-wine: #38000A`)
+- `src/lib/utils.ts` (new, created by shadcn init — the `cn()` class-merge helper)
+- `src/components/ui/button.tsx` (new, created by shadcn init — default Button with variants)
+- `src/components/ui/spotlight-cursor.tsx` (modified, pre-saved component: cursor-following radial-gradient canvas overlay; fixed `className` prop defaulting so an omitted prop no longer renders the literal class `"undefined"`)
+- `src/components/ui/red-black-vanila.tsx` (modified, pre-saved component: zero-dependency WebGL "Silk" shader background canvas; added non-null assertions inside the `render` loop to satisfy TypeScript strict null checks — no behavior change)
+- `docs/design-theme.md` (new, records the chili palette, per-colour roles, the "errors need icon + wording, not colour alone" rule, and a placeholder for the landing page spec)
+- `stage-files/stage-1-prototype.md` (modified, appended this log entry)
+
+**What changed:**
+- shadcn/ui is now initialized in the project. Practically that means: a `components.json` telling the shadcn CLI where to put things, the `cn()` utility in `src/lib/utils.ts`, a default `Button` component, and a rewritten `globals.css` that swaps the old hand-rolled light/dark variables for shadcn's full neutral oklch token set plus animation imports. New shadcn components can now be added with `npx shadcn@latest add <name>`.
+- On top of shadcn's neutral tokens, the four Rabbit Hole brand colours were registered as first-class Tailwind v4 theme tokens, so `bg-primary`, `text-wine`, `hover:bg-primary-deep`, `bg-primary-soft` etc. work anywhere without arbitrary-value syntax. `primary` intentionally overrides shadcn's near-black default primary with chili red.
+- `spotlight-cursor.tsx` bug fix: the component destructured `className` with no default and interpolated it into a template string, so rendering `<Component />` without a className produced `class="... undefined"`. It now defaults to `''`.
+- `red-black-vanila.tsx` build fix: TypeScript strict mode flagged `canvas`/`gl` as possibly null inside the animation-frame `render` closure (the null guards at the top of the effect don't narrow across async callbacks). Added `!` assertions at the seven flagged expressions in `render` only; runtime behavior is unchanged because those guards already ran.
+- `docs/design-theme.md` was created as the design-system reference: palette table, role of each colour (chili red = primary actions, peach = soft surfaces but never text on light backgrounds, deep red = hover/pressed, wine = dark backgrounds and text on peach, black = landing page background), and the accessibility rule that because red is the brand colour, error states must always pair colour with an icon and explicit wording.
+
+**Why:**
+- Phase 1 deliverables in `plan.md` §3 call for the Next.js + Tailwind stack; shadcn/ui gives production-grade accessible primitives (starting with Button) instead of hand-rolling UI, which matters because this is intended to become a real product.
+- The two components are landing-page building blocks (spotlight cursor effect, red/black WebGL shader background) — saved now, wired up when the landing page spec arrives.
+- Centralizing brand colours as tokens and documenting roles in `docs/design-theme.md` prevents inconsistent one-off hex values across screens and keeps future sessions aligned with the "red is brand, not just error" accessibility constraint.
+- Per prompt instructions, `src/app/onboarding`, `quiz`, `feed`, `chat`, `dashboard` and `src/lib/firebase.ts` were left untouched; nothing was deleted.
+
+**Result:**
+- `npm run build` passes: TypeScript clean, all 7 routes (`/`, `/chat`, `/dashboard`, `/feed`, `/onboarding`, `/quiz`, `/_not-found`) prerender as static content.
+- `npx eslint` on both modified components reports no issues.
+- First build attempt failed with 7 TS18047 strict-null errors in `red-black-vanila.tsx`; fixed as described above, second build succeeded.
+
+**Open questions:**
+- The landing page spec has not been provided yet — `docs/design-theme.md` has a placeholder section to fill in when it arrives.
+- shadcn init changed `--font-sans: var(--font-geist-sans)` to `--font-sans: var(--font-sans)` in `globals.css`, while `src/app/layout.tsx` still binds Geist via the `--font-geist-sans` variable. Fonts still render via the `@layer base` default, but a future session should reconcile the font variable names when the landing page typography is decided.
+
 
