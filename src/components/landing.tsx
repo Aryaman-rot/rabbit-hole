@@ -75,7 +75,7 @@ export function Landing() {
           )}
         />
       )}
-      <main className="relative z-10 flex min-h-dvh flex-col items-center justify-center gap-10 px-6">
+      <main className="fixed inset-0 z-10">
         <h1 aria-label="Rabbit Hole" className="rh-title">
           <span aria-hidden="true" className="rh-script">
             Rabbit
@@ -84,24 +84,15 @@ export function Landing() {
             Hole
           </span>
         </h1>
-        {!settled && (
-          <div
-            className="rh-fall-in"
-            style={
-              entered
-                ? { opacity: 0, transitionDelay: "0s", pointerEvents: "none" }
-                : undefined
-            }
+        <div className={cn("rh-fall-in", entered && "rh-exited")}>
+          <button
+            type="button"
+            className="rh-cta"
+            onClick={() => setEntered(true)}
           >
-            <button
-              type="button"
-              className="rh-cta"
-              onClick={() => setEntered(true)}
-            >
-              Fall in
-            </button>
-          </div>
-        )}
+            Fall in
+          </button>
+        </div>
       </main>
     </>
   );

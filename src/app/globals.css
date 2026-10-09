@@ -144,6 +144,10 @@
 
 .rh-title {
   --rh-hole-size: clamp(3rem, 11vw, 8rem);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: baseline;
   gap: calc(var(--rh-hole-size) * 0.08);
@@ -199,6 +203,13 @@
   --rh-wipe: 112%;
 }
 
+.rh-fall-in {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + clamp(3rem, 9vw, 6rem));
+  transform: translateX(-50%);
+}
+
 .rh-anim .rh-fall-in,
 .rh-anim-fade .rh-script,
 .rh-anim-fade .rh-sans,
@@ -224,6 +235,17 @@
 .rh-anim-fade.rh-begin .rh-sans,
 .rh-anim-fade.rh-begin .rh-fall-in {
   opacity: 1;
+}
+
+.rh-anim .rh-fall-in.rh-exited,
+.rh-anim-fade .rh-fall-in.rh-exited,
+.rh-fall-in.rh-exited {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 0.6s ease-out,
+    visibility 0s linear 0.6s;
 }
 
 @keyframes rh-fade-in {

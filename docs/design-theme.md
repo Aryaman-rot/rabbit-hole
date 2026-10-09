@@ -47,8 +47,10 @@ beats Tailwind's `@layer theme` default on the html element. Background:
 flash.
 
 Title (`src/app/page.tsx` + `src/components/landing.tsx`): one-line logo, an
-`h1` with `aria-label="Rabbit Hole"` (spans `aria-hidden`), flex
-`align-items: baseline`, gap ≈ 8% of the Hole size. "Rabbit" in
+`h1` with `aria-label="Rabbit Hole"` (spans `aria-hidden`), absolutely centered
+in the viewport on its own (`top/left: 50%`, `translate(-50%, -50%)`,
+independent of the button), flex `align-items: baseline`, gap ≈ 8% of the Hole
+size. "Rabbit" in
 `var(--font-script)` at 1.3× the Hole size, chili red (`--color-primary`), with
 a soft dark `text-shadow: 0 2px 30px rgba(0,0,0,.6)` so the thin strokes stay
 legible over the red shader. "Hole" in Inter 800, white, `letter-spacing:
@@ -71,7 +73,11 @@ pill, `linear-gradient(135deg, rgba(255,255,255,.9), rgba(255,168,150,.9) 50%,
 rgba(255,230,222,.9))`, wine text, 14px/600, `px-6 py-3`, inset top highlight
 plus soft peach glow; hover lifts 1px with glow `rgba(205,28,24,.35)`;
 `focus-visible` gets a peach (`--color-primary-soft`) outline. Keyboard works
-natively (real button).
+natively (real button). The wrapper is absolutely positioned at a fixed offset
+below true center (`top: calc(50% + clamp(3rem, 9vw, 6rem))`) so it never
+affects the title's position; on click it fades out
+(`opacity` + `pointer-events: none`, then `visibility: hidden` after the
+transition — never unmounted or `display: none`).
 
 Hover: the pre-built spotlight cursor canvas mounts only on fine pointers,
 config `color #CD1C18, brightness 0.18, radius 220`.
@@ -79,6 +85,7 @@ config `color #CD1C18, brightness 0.18, radius 220`.
 Click: mounts the pre-built WebGL `ShaderBackground` (uniforms untouched) only
 after the click, behind a CSS fallback gradient `#38000A → #9B1313`
 (`--color-wine` → `--color-primary-deep`) that shows if WebGL fails; the layer
-crossfades in over the black page in 1.2s. Button and spotlight fade out
-(~0.7s) and unmount; the title stays; nothing navigates. Reload resets to the
+crossfades in over the black page in 1.2s. Button fades out and hides
+(visibility, still mounted); the spotlight fades and unmounts; the title stays
+exactly where it was; nothing navigates. Reload resets to the
 black state (no persistence).

@@ -210,3 +210,24 @@
 - How should the entrance behave on repeat visits (skip the 3s sequence after the first time, or always play)? Currently it always plays.
 
 
+
+---
+
+## 2026-10-10 — Fix: Landing Title Jumped Down on "Fall in" Click
+
+**Cause:** <main> was a flex column with justify-center, so the title and the button wrapper were centered together as one group. The settled timer (700ms after the click) unmounted the button wrapper, which re-centered the group and shifted the title down to true viewport center — a visible jump right after the crossfade started.
+
+**Files touched:**
+- src/app/globals.css (title and button wrapper taken out of the group flow: .rh-title now absolutely centered on its own (	op/left: 50%, 	ranslate(-50%, -50%)), .rh-fall-in absolutely positioned at a fixed offset below true center (	op: calc(50% + clamp(3rem, 9vw, 6rem)), left: 50%, 	ranslateX(-50%)); new .rh-exited rule fades the wrapper with opacity 0.6s + pointer-events: none, flipping isibility: hidden only after the fade via 	ransition: visibility 0s linear 0.6s)
+- src/components/landing.tsx (<main> is now ixed inset-0 instead of a centered flex column; the button wrapper stays mounted and toggles an h-exited class instead of unmounting with an inline style; the settled timer now only unmounts the spotlight canvas)
+- docs/design-theme.md (landing spec updated to match: title centered independently, button at fixed offset, click behavior fades + hides instead of unmounting)
+- stage-files/stage-1-prototype.md (appended this log entry)
+
+**How it was fixed:** The title is absolutely centered in the viewport independent of any sibling, and the button is absolutely positioned at a fixed offset below the 50% line, so nothing that mounts, unmounts, or changes class around them can move either one. On click the button stays in the DOM: pointer-events: none immediately, opacity fades over 0.6s, and isibility: hidden applies only after the fade completes (no unmount, no display: none while the crossfade runs). The shader layer and the spotlight fade-out are both fixed-position overlays and never participate in layout.
+
+A defect found while verifying: the first placement of the .rh-exited rule came before the entrance opacity: 1 rule with equal specificity, so the button never actually faded (opacity stayed 1 and it just vanished when visibility flipped). Moved the .rh-exited block after the entrance rules so it wins the cascade.
+
+**Result:** Measured getBoundingClientRect().top of the title before the click, mid-crossfade (250ms after), and after (2s after, past the spotlight unmount) at 1440x900 and 390x844: identical values at every step on both viewports (365.296875 desktop, 390.296875 mobile; horizontal center exact at 720/1440 and 195/390). Button computed style over the same steps: opacity 1 -> ~0.38 (mid-fade) -> 0, isibility flips to hidden only after the transition, pointer-events: none from the moment of click, element still in the DOM throughout. Write-on animation, hover spotlight, and crossfade unchanged; no console errors during the runs. 
+pm run build passes.
+
+**Open questions:** none for this fix — the earlier visual checks (swash clipping within the 0.3em mask padding, "Rabbit" legibility over the shader) still stand.
