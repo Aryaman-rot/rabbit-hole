@@ -14,7 +14,7 @@ const spotlightConfig = {
 
 export function Landing() {
   const router = useRouter();
-  const { fall } = useBackground();
+  const { fall, warm } = useBackground();
   const [finePointer, setFinePointer] = useState(false);
   const [entered, setEntered] = useState(false);
   const [settled, setSettled] = useState(false);
@@ -28,22 +28,53 @@ export function Landing() {
       typeof CSS !== "undefined" &&
       (CSS.supports("mask-image", "linear-gradient(#000, #000)") ||
         CSS.supports("-webkit-mask-image", "linear-gradient(#000, #000)"));
-    if (
-      !reduce &&
-      !root.classList.contains("rh-anim") &&
-      !root.classList.contains("rh-anim-fade")
-    ) {
-      root.classList.add(maskSupported ? "rh-anim" : "rh-anim-fade");
-    }
-    if (document.fonts) {
-      document.fonts.ready.then(
-        () => root.classList.add("rh-begin"),
-        () => root.classList.add("rh-begin"),
-      );
+    const animClass = maskSupported ? "rh-anim" : "rh-anim-fade";
+    const animated = !reduce && !root.classList.contains(animClass);
+    if (animated) root.classList.add(animClass);
+
+    let cancelled = false;
+    const warmWhenIdle = () => {
+      if (cancelled) return;
+      const requestIdle =
+        typeof window.requestIdleCallback === "function"
+          ? window.requestIdleCallback.bind(window)
+          : null;
+      if (requestIdle) {
+        requestIdle(
+          () => {
+            if (!cancelled) warm();
+          },
+          { timeout: 2000 },
+        );
+      } else {
+        window.setTimeout(() => {
+          if (!cancelled) warm();
+        }, 200);
+      }
+    };
+
+    if (!animated) {
+      warmWhenIdle();
     } else {
-      root.classList.add("rh-begin");
+      const begin = () => {
+        if (cancelled) return;
+        root.classList.add("rh-begin");
+        window.setTimeout(warmWhenIdle, 3600);
+      };
+      if (document.fonts) {
+        document.fonts.ready.then(begin, begin);
+      } else {
+        begin();
+      }
     }
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [warm]);
+
+  useEffect(() => {
+    router.prefetch("/onboarding");
+  }, [router]);
 
   useEffect(() => {
     const mq = window.matchMedia("(pointer: fine)");
@@ -78,7 +109,10 @@ export function Landing() {
         />
       )}
       <main className="fixed inset-0 z-10">
-        <h1 aria-label="Rabbit Hole" className="rh-title">
+        <h1
+          aria-label="Rabbit Hole"
+          className={cn("rh-title", entered && "rh-title-out")}
+        >
           <span aria-hidden="true" className="rh-script">
             Rabbit
           </span>

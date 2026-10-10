@@ -27,7 +27,7 @@ export default function OnboardingPage() {
 
   return (
     <main className="flex min-h-dvh w-full items-center justify-center p-4 sm:p-6">
-      <section className="rh-glass w-full max-w-md p-6 sm:p-8">
+      <section className="rh-glass rh-panel-in w-full max-w-md p-6 sm:p-8">
         <header className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             {slides.map((_, idx) => (

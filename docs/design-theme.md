@@ -87,12 +87,22 @@ Click: the CTA calls `fall()` on the root `BackgroundProvider`
 `ShaderBackground` for the whole app (uniforms untouched) inside a fixed
 `-z-10` wrapper with the CSS fallback gradient `#38000A → #9B1313`
 (`--color-wine` → `--color-primary-deep`) that shows if WebGL fails. The layer
-crossfades in over the black page in 1.2s (`opacity` transition). The shader is
-visible on any route other than "/" and after `fall()`; returning to "/" fades
-it back to the black state. The landing click awaits the crossfade, then pushes
-to `/onboarding`. Button fades out and hides (visibility, still mounted); the
-spotlight fades and unmounts; the title stays exactly where it was until the
-push. Reload resets to the black state (no persistence).
+crossfades in over the black page in 1.2s with `cubic-bezier(0.22, 1, 0.36, 1)`.
+The shader is visible on any route other than "/" and after `fall()`; returning
+to "/" fades it back to the black state and the landing write-on replays.
+
+Transition choreography (landing → `/onboarding`): the landing prefetches
+`/onboarding` on mount, and warms the shader by mounting the (still single,
+hidden) canvas via `warm()` once the entrance reveal has finished plus an
+idle callback — so shader compilation happens before the click, never during
+it. On click: button fades (0.6s), shader crossfades (1.2s), the title fades
+out with a 0.98 scale (0.5s starting 0.7s in, opacity+transform only), the
+push happens at the end of the crossfade, and the onboarding/signup panel
+enters with opacity + `translateY(12px → 0)` over 0.6s (`.rh-panel-in`) — no
+hard cuts. Under `prefers-reduced-motion` everything is instant (no animation).
+The title position never shifts: it's absolutely centered and only
+opacity/transform are animated. Reload resets to the black state (no
+persistence).
 
 Note: `body` no longer sets `bg-background` — a body background paints over a
 negative-z canvas. The black comes from `html` alone, behind the shader layer.

@@ -268,3 +268,35 @@ pm run build passes (8 static routes including /signup); ESLint clean on all tou
 - The persistent shader keeps rendering (time-animated) even while hidden on "/" (opacity 0) — acceptable for the prototype, but a pause-when-hidden optimization could be added later without touching the uniforms.
 - The old onboarding linked onward to /quiz; the new copy routes to /signup instead, so /quiz is currently only reachable by URL until the signup flow lands.
 - A React dev-only console notice about a rendered <script> (no functional impact; the documented InlineScript helper is already in use).
+
+---
+
+## 2026-10-10 — Perf: Smoother Landing-to-Onboarding Transition
+
+**Prompt (summarized):** The "Fall in" click-to-/onboarding transition felt slightly laggy. Suspected causes: (1) shader compiles on the main thread at the click, (2) /onboarding isn't prefetched so the push waits on the route, (3) title and onboarding panel hard-cut at navigation. Confirm by measuring first (PerformanceObserver longtask + frame gaps from click until /onboarding is painted, headless browser), then fix: prefetch /onboarding on landing mount; warm the shader by mounting it (still one canvas, still owned by BackgroundProvider) at opacity 0 once the reveal has finished and the browser is idle (requestIdleCallback with timeout fallback); choreograph the click (button fade, 1.2s crossfade with cubic-bezier(0.22,1,0.36,1), title fade-out + scale 1->0.98 over 0.5s starting 0.7s in, router.push at crossfade end, panel enter opacity 0->1 + translateY 12px->0 over 0.6s); animate only opacity/transform; keep reduced-motion instant; keep title-rect stability; also verify against a production build. Commit as "perf: smoother landing to onboarding transition".
+
+**Measurements (before changing anything; 1440x900, headless Edge, click-to-painted-/onboarding):**
+- BEFORE dev (fresh server): clickToPaint 2897ms, longtasks during click: 0, max frame gap 33ms, title computed opacity at t+1s: 1 (no exit animation -> hard cut at the 1250ms push), WebGL canvases 1, title top stable.
+- BEFORE prod: clickToPaint 1467ms (~217ms above the 1250ms choreography — the un-prefetched route fetch), longtasks 0, max gap 17ms, title opacity at t+1s: 1.
+- Cause verdicts: (1) REFUTED — the persistent provider already mounts/compiles the shader at page load; zero longtasks during the click in dev and prod. (2) REAL — dev +~1650ms (on-demand route compile wait, 2897 total), prod +~217ms (un-prefetched RSC fetch). (3) REAL — title still opacity 1 at t+1s and unmounts abruptly at the push; the panel mounted with no enter animation.
+
+**Files touched:**
+- src/components/background-provider.tsx (added a sticky warmed state and a warm() on the context; the shader canvas now mounts only when warmed || pathname !== "/" (still exactly one canvas; on non-landing routes it mounts immediately since it must be visible); all() also sets warmed so a click before the warm edge case still mounts + crossfades correctly)
+- src/components/landing.tsx (prefetches /onboarding on mount; after the entrance reveal finishes (rh-begin + 3.6s) calls warm() via requestIdleCallback (2s timeout) with a setTimeout fallback, so shader compilation happens before the click and not during the write-on; title gains an h-title-out class on click)
+- src/app/globals.css (crossfade now cubic-bezier(0.22,1,0.36,1); new h-title-out (opacity to 0 + scale 0.98, 0.5s starting 0.7s in, forwards) and h-panel-in (opacity 0->1 + translateY 12px->0, 0.6s) keyframes — opacity/transform only; reduced-motion disables both)
+- src/app/onboarding/page.tsx, src/app/signup/page.tsx (panels get h-panel-in)
+- docs/design-theme.md (click/choreography spec updated to as-built)
+- stage-files/stage-1-prototype.md (appended this entry)
+
+**Result (after):**
+- AFTER dev (fresh server): clickToPaint 1563ms (was 2897 — the dev route-compile wait is gone because the prefetch compiles the route during idle), longtasks 0, max gap 17ms, title opacity at t+1s: 0.18 (fading smoothly), WebGL canvases 1, title top 365.296875 before/mid-click.
+- AFTER prod: clickToPaint 1379ms (was 1467; the remaining ~130ms over the 1250ms choreography is playwright click latency + paint frames), longtasks 0, gaps>32ms: 0, title opacity at t+1s: 0.25, WebGL canvases 1, title top stable.
+- Regression checks (prod build): back-navigation to "/" still resets to black (bgOpacity 0) and the write-on replays (mask gradient ends at 112%/120% = fully revealed; button replays 0->1); the onboarding panel enters with h-panel-in; mobile 390px: WebGL canvases 1 pre/mid/post-click, title top 390.296875 unchanged; reduced motion: button immediately visible, mask-image none, click->/onboarding in 130ms, panelAnim none, everything instant.
+- A build-breaking TS detail was caught and fixed: "requestIdleCallback" in window narrows window to 
+ever in the else branch (lib.dom declares it), so the idle warm uses 	ypeof window.requestIdleCallback === "function" instead.
+- 
+pm run build passes; ESLint clean on all touched files. One transient test flake (a waitForURL timeout in a scripted mobile run) did not reproduce in isolation or on re-run.
+
+**Open questions:**
+- The warmed shader still renders at 60fps while hidden at opacity 0 on "/" (now only after the entrance + idle, but continuously thereafter) — a pause-when-hidden optimization remains possible without touching the uniforms.
+- Prod clickToPaint still carries ~130ms of measurement/playwright overhead on top of the 1250ms choreography; a real-user trace (Chrome DevTools on device) would confirm how much of that survives outside the harness.
