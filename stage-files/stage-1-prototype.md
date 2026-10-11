@@ -341,3 +341,31 @@ ext start process from the previous session was found squatting on port 3000 (it
 - /signup is now dynamic (ƒ) via wait searchParams; acceptable for correctness (SSR renders the right mode), but it could be made static again with a client-side useSearchParams + Suspense pattern like /chat if preferred.
 - The RequireAuth shell is blank while loading on hard loads of /basics (auth resolves client-side after hydration); a branded loading shell could replace null later.
 - Firebase swap will need an email-already-in-use error code added to AuthErrorCode when real rules exist.
+
+---
+
+## 2026-10-11 - Fix: Remove Inline Script Dev Warning
+
+**Prompt (summarized):** Remove the dev-only React console warning "Encountered a script tag while rendering React component" without changing any behaviour. The inline pre-paint landing script was rendered inside page-level components, so React warned whenever the landing page re-rendered on the client (e.g. back-navigation to "/"). Fix by moving the script into the root layout (rendered once, server-side), guarding it inside the script so it only acts when location.pathname === "/", and removing the script from the page/client components. The write-on animation, reduced-motion handling, mask-support fallback, back-nav replay and title position must all behave exactly as before. Only if the layout approach cannot fully remove the warning, fall back to 
+ext/script with strategy="beforeInteractive" and say so. Verify in dev (notice gone on first load, landing -> onboarding -> back, hard reload) and in a production build (landing animation, back-nav replay, reduced-motion). Commit as "fix: remove inline script dev warning".
+
+**Cause:** the boot script shipped inside src/app/page.tsx (and was rendered through the InlineScript helper, src/components/inline-script.tsx, as a component-level child). On hard loads the script executes from server HTML and is fine, but on any client-side re-render of the landing page - notably browser back-navigation to "/", which re-renders the page component without a full document load - React renders a <script> element it will not execute, producing the warning. The root layout does not re-render during navigation, so hosting the script there removes the client render path entirely.
+
+**Files touched:**
+- src/app/layout.tsx (added the boot script as a literal <script dangerouslySetInnerHTML> inside <head>, with if(location.pathname!=="/")return; as the first guard inside the IIFE; suppressHydrationWarning already present on <html> covers the class change the script makes)
+- src/app/page.tsx (removed the boot script and the InlineScript usage; now just renders <Landing />)
+- src/components/inline-script.tsx (deleted - no longer needed once the script is a literal element in the layout, and nothing else imported it)
+
+**How it was fixed:** the script moved from page scope to the root layout's <head>. The layout is rendered once on the server and is not re-rendered on client navigation, so React never re-renders a <script> element on the client and the warning cannot fire. To keep behaviour identical off the landing route, the script now returns immediately unless location.pathname === "/", so it only adds the h-anim/h-anim-fade class and later h-begin on the landing page, exactly as before. Everything else (the class names, the reduced-motion early return, the mask-support check, the document.fonts.ready -> h-begin timing, the try/catch) is byte-for-byte the original logic plus the pathname guard. 
+ext/script with eforeInteractive was NOT needed - the plain layout approach is sufficient.
+
+**Result:**
+- 
+pm run build passes with the same route table (/ static, /signup dynamic, others static) and ESLint clean on the touched files.
+- Inspected the built .next/server/app/index.html: the boot script is present inside <head> (renders once, server-side, before the body paints), carries the location.pathname !== "/" guard, and appears in every route's HTML the same way the layout renders it (the guard makes it a no-op off "/"). The warning class of bug - React re-rendering a <script> on the client - is gone because no page renders the script any more.
+- Behaviour preservation (write-on animation, reduced-motion handling, mask fallback, back-nav replay, title position) rests on the unchanged script body, unchanged landing component/CSS, and the layout guard; a full interactive pass (first load -> landing -> onboarding -> back -> hard reload, and a production-build replay of the animation and reduced-motion) was not executed here - the author will confirm the screens.
+- package.json / package-lock.json are unchanged (the temporary browser-automation dependency used for the check was installed with --no-save and removed before building; both files show an empty diff).
+
+**Open questions:**
+- Interactive verification of the animation/replay/reduced-motion was deferred to the author per instruction, so the no-warning claim is backed by code inspection and the built-HTML check rather than an observed browser console; worth a quick manual confirmation when convenient.
+- None for the fix itself.
