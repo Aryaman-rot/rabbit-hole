@@ -123,7 +123,44 @@ under reduced motion). Headline is Inter bold white; body copy is peach
 (`text-primary-soft`). Progress dots (`.rh-dot`, peach; active one elongates),
 "Next" is a solid chili-red pill with white text (`.rh-primary-btn`, deep red on
 hover), "Back" and "Skip" are quiet peach text buttons (`.rh-quiet`). Final
-slide's button reads "Get started" and routes to `/signup`, which is a
-placeholder glass panel reading "Sign up is coming next". All controls are real
-buttons/links with a visible peach focus ring (`.rh-focus:focus-visible`,
+slide's button reads "Get started" and routes to `/signup`. All controls are
+real buttons/links with a visible peach focus ring (`.rh-focus:focus-visible`,
 2px outline).
+
+## Sign-up / log-in + fake auth (as built)
+
+Auth lives in `src/lib/auth/`: an `AuthService` interface (`auth-service.ts`
+with `AuthUser` = `{ uid, email, createdAt }` and an `AuthError` code), a fake
+implementation (`fake-auth.ts`, headed by a prominent **DEV ONLY — replace
+with Firebase** banner), and `AuthProvider`/`useAuth()` (`auth-context.tsx`)
+mounted in the root layout *inside* `BackgroundProvider`, so the single
+persistent shader is untouched. Fake rules: one localStorage key
+(`rabbit_hole_auth_user_v1`) stores only `{ uid, email, createdAt }`; the
+password is never stored, compared, or logged (discarded via `void password`);
+sign-up always succeeds; sign-in succeeds for any *registered* email and
+throws `invalid-credentials` for an unknown email; "Continue with Google"
+signs in `demo@rabbithole.test`; every call has a ~400ms latency so the UI
+feels real. Swap the `fakeAuth` export for a Firebase-backed service with the
+same shape — that's the contract the rest of the app consumes.
+
+`/signup` (one page, mode via `?mode=login`, so it renders dynamically):
+glass panel with a Sign up / Log in tab toggle (links, `aria-current`),
+"Continue with Google" above an "or" divider, then email + password fields
+(`autocomplete` = `email` + `new-password`/`current-password`), a show/hide
+password button (`aria-pressed`), the sign-up-only required "I'm 18 or older"
+checkbox (`accent-color` chili), and the solid chili primary button with a
+loading state. Under the form, a small peach note: "Prototype: no real
+accounts yet. Please don't use a real password."
+
+Validation: every error pairs a `TriangleAlert` icon with a plain sentence in
+light cream (`#ffe9e3` — deliberately NOT chili-red text; invalid fields get a
+peach border, but the icon + sentence carry the meaning, never colour alone).
+Errors link via `aria-describedby` + `aria-invalid`, and a visually hidden
+`aria-live="polite"` region announces the first current message. Cases: invalid
+email, password under 8 chars, unchecked 18+ box, and "We couldn't find an
+account with those details." on log-in.
+
+`/basics` is the post-auth placeholder ("Tell us a bit about you - coming
+next" + "Sign out"), gated by a small `RequireAuth` wrapper
+(`src/components/require-auth.tsx`) that redirects to `/signup` when signed
+out. Signed-in users who open `/signup` are redirected to `/basics`.

@@ -300,3 +300,44 @@ pm run build passes; ESLint clean on all touched files. One transient test flake
 **Open questions:**
 - The warmed shader still renders at 60fps while hidden at opacity 0 on "/" (now only after the entrance + idle, but continuously thereafter) — a pause-when-hidden optimization remains possible without touching the uniforms.
 - Prod clickToPaint still carries ~130ms of measurement/playwright overhead on top of the 1250ms choreography; a real-user trace (Chrome DevTools on device) would confirm how much of that survives outside the harness.
+
+---
+
+## 2026-10-10 — Sign-up / Log-in UI with Fake Auth Layer
+
+**Prompt (summarized):** Build /signup (sign up + log in) on a swappable fake auth layer in src/lib/auth/ (AuthService interface: signUpWithEmail, signInWithEmail, signInWithGoogle, signOut, onAuthChange; fake implementation storing only { uid, email, createdAt } in localStorage under one key, never storing or logging the password, ~400ms latency, Google -> demo user, prominent DEV ONLY - replace with Firebase banner; AuthProvider + useAuth() mounted in the root layout without breaking the persistent shader). /signup on the same glass panel as onboarding with a Sign up / Log in toggle (?mode=login), email + password (min 8, show/hide), Continue with Google above an "or" divider, sign-up-only required 18+ checkbox, correct autocomplete attributes, peach prototype note, chili solid primary button with loading state. Validation errors always pair an icon with a plain sentence in a readable light colour (not chili red), linked via aria-describedby and announced in an aria-live region: invalid email, short password, unchecked 18+, no-account/wrong-details on log-in. After success router.push("/basics"); /basics is a glass placeholder ("Tell us a bit about you - coming next") with a Sign out button, gated by a small RequireAuth wrapper; signed-in users opening /signup go to /basics. Keep exactly one WebGL canvas, existing transition behaviour, keyboard operability, visible focus rings, reduced-motion behaviour. Verify in a headless browser, run npm run build, log, commit as "feat: signup/login UI with fake auth". Quiz, feed, chat, dashboard and firebase.ts untouched; no Firebase API calls.
+
+**Files touched:**
+- src/lib/auth/auth-service.ts (new: AuthUser { uid, email, createdAt }, AuthError with codes, and the AuthService interface — the swap-in point for Firebase)
+- src/lib/auth/fake-auth.ts (new: DEV ONLY banner implementation; single localStorage key abbit_hole_auth_user_v1; only { uid, email, createdAt } stored; password discarded via oid password — never stored/compared/logged; sign-up always succeeds, sign-in succeeds for a registered email and throws AuthError "invalid-credentials" for an unknown one; signInWithGoogle creates/reuses demo@rabbithole.test; 400ms fake latency on credential calls; onAuthChange emits the stored user on subscribe via queueMicrotask and on every change)
+- src/lib/auth/auth-context.tsx (new: AuthProvider + useAuth() exposing user, loading, and the four actions; state flows through fakeAuth.onAuthChange so there is one source of truth)
+- src/components/require-auth.tsx (new: small RequireAuth wrapper — redirects to /signup via router.replace once auth resolves and the user is null; renders nothing while loading)
+- src/app/layout.tsx (AuthProvider mounted inside BackgroundProvider so the single persistent shader canvas and its warm/fall logic are untouched)
+- src/app/signup/page.tsx (rebuilt: async server page reading wait searchParams -> isLogin prop; awaiting searchParams makes /signup dynamically rendered (ƒ) — the rest of the app stays static)
+- src/app/signup/signup-form.tsx (new client form: tab toggle via Links to /signup and /signup?mode=login with aria-current; "Continue with Google" above an "or" divider; email + password fields with autocomplete email + new-password/current-password; show/hide password button (aria-pressed, Eye/EyeOff lucide icons — already a dependency); sign-up-only required 18+ checkbox; chili solid primary submit with disabled+renamed loading state and aria-busy; peach prototype note; signed-in users are redirected to /basics; validation on submit focuses the first invalid field)
+- src/app/basics/page.tsx (new: RequireAuth-gated placeholder)
+- src/app/basics/basics-panel.tsx (new: glass panel "Tell us a bit about you - coming next", "Signed in as {email}", Sign out button)
+- src/app/globals.css (new classes: .rh-tab/.rh-tab-active toggle pills, .rh-alt-btn bordered secondary button, .rh-or divider, .rh-label, .rh-input (+ aria-invalid peach border, placeholder, focus ring), .rh-password-wrap/.rh-show-btn, .rh-error (light cream #ffe9e3 + peach TriangleAlert icon — not chili red), .rh-check (accent-color), .rh-note; .rh-primary-btn/.rh-alt-btn disabled states)
+- docs/design-theme.md (replaced the stale "/signup placeholder" sentence; added a "Sign-up / log-in + fake auth (as built)" section)
+- stage-files/stage-1-prototype.md (appended this entry)
+
+**Why:**
+- The AuthService interface + one export to swap (akeAuth) means Firebase can replace the fake without touching the provider, the form, or /basics.
+- The password is deliberately never stored or compared (it is discarded), so the fake cannot leak credentials and the "wrong details" log-in case is driven by unknown-email instead.
+- Validation follows the theme's a11y rule: every error pairs an icon with a plain sentence in a readable light colour on the dark panel — never colour alone, never chili-red text.
+- AuthProvider sits inside BackgroundProvider (not around it) so the shader's mount/warm/visible logic and its single canvas are unchanged.
+
+**Result:**
+- ESLint clean on all touched files (including fake-auth's oid password discards; no setState-in-effect violations — the subscribe-time user emission is queued as a microtask inside fakeAuth.onAuthChange).
+- 
+pm run build passes: 10 routes; /signup renders dynamically (ƒ) because it awaits searchParams, /basics prerenders statically with the RequireAuth null shell (auth is client-only, so the panel mounts after hydration).
+- Server-level verification (headless-browser verification was skipped per the author, who will check the screens personally): dev server SSR for /signup?mode=login contains "Welcome back" + utocomplete="current-password"; /signup contains "Create your account", 
+ew-password, the Google button, and the 18+ checkbox; /onboarding is untouched. /basics returns 200 and intentionally renders no panel server-side (RequireAuth null until the client resolves auth). A stale 
+ext start process from the previous session was found squatting on port 3000 (its built output predates this task and was serving the old placeholder); both servers were killed and port 3000/3001 confirmed free before building.
+- Not yet browser-verified (deferred to the author): the four inline validation messages + aria-live announcements, sign-up -> /basics, reload persistence, sign-out redirect, /basics redirect when signed out, Google demo user, password absence in localStorage, canvas count 1 at 390px/1440px, keyboard operability.
+
+**Open questions:**
+- Interpretation call: "Email/password sign-in succeeds for any valid input" was implemented as "succeeds for any *registered* email" — an unknown email throws the invalid-credentials error, because that is the only way the required "no account found / wrong details" validation case can ever appear, and the fake cannot compare passwords it never stores. Confirm this reading.
+- /signup is now dynamic (ƒ) via wait searchParams; acceptable for correctness (SSR renders the right mode), but it could be made static again with a client-side useSearchParams + Suspense pattern like /chat if preferred.
+- The RequireAuth shell is blank while loading on hard loads of /basics (auth resolves client-side after hydration); a branded loading shell could replace null later.
+- Firebase swap will need an email-already-in-use error code added to AuthErrorCode when real rules exist.

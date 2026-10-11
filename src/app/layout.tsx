@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Mrs_Saint_Delafield } from "next/font/google";
 import { BackgroundProvider } from "@/components/background-provider";
+import { AuthProvider } from "@/lib/auth/auth-context";
 import "./globals.css";
 
 const inter = Inter({
@@ -28,7 +29,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${mrsSaintDelafield.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <BackgroundProvider>{children}</BackgroundProvider>
+        <BackgroundProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </BackgroundProvider>
       </body>
     </html>
   );
