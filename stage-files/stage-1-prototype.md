@@ -369,3 +369,14 @@ pm run build passes with the same route table (/ static, /signup dynamic, others
 **Open questions:**
 - Interactive verification of the animation/replay/reduced-motion was deferred to the author per instruction, so the no-warning claim is backed by code inspection and the built-HTML check rather than an observed browser console; worth a quick manual confirmation when convenient.
 - None for the fix itself.
+
+---
+
+## 2026-10-11 - Move Git Remote to Aryaman-rot/rabbit-hole
+
+**What changed:** the origin remote URL was repointed from https://github.com/sudhendrak04/FWB-only-app.git (old) to https://github.com/Aryaman-rot/rabbit-hole.git (new), and a "Git" section was added to AGENTS.md recording the remote, the working branch, the commit-then-push convention, and the no-force-push / stop-on-auth-error rules. No code was touched and nothing was changed on the old remote.
+
+**Why:** the previous session's commits had been going to a different account's repository (sudhendrak04/FWB-only-app), which was never the intended destination for this project. The seven commits from 770202 onward were local-only; this session pushed the full history to the correct repository.
+
+**Old remote:** https://github.com/sudhendrak04/FWB-only-app.git
+**New remote:** https://github.com/Aryaman-rot/rabbit-hole.git
