@@ -1,10 +1,19 @@
+"use client";
+
+import { useState } from "react";
 import { RequireAuth } from "@/components/require-auth";
-import { BasicsPanel } from "./basics-panel";
+import { AgeBlockedNotice, BasicsWizard } from "./basics-panel";
 
 export default function BasicsPage() {
+  const [ageBlocked, setAgeBlocked] = useState(false);
+
   return (
-    <RequireAuth>
-      <BasicsPanel />
+    <RequireAuth allowSignedOut={ageBlocked}>
+      {ageBlocked ? (
+        <AgeBlockedNotice />
+      ) : (
+        <BasicsWizard onAgeBlocked={() => setAgeBlocked(true)} />
+      )}
     </RequireAuth>
   );
 }

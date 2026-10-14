@@ -639,3 +639,49 @@
   font-size: 0.75rem;
   color: rgba(255, 168, 150, 0.75);
 }
+
+.rh-chip-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.rh-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1rem;
+  border: 1px solid rgba(255, 168, 150, 0.3);
+  border-radius: 9999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.rh-chip:hover {
+  border-color: var(--color-primary-soft);
+}
+
+.rh-chip-selected {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary-soft);
+  color: var(--color-wine);
+}
+
+.rh-chip-input:focus-visible + .rh-chip {
+  outline: 2px solid var(--color-primary-soft);
+  outline-offset: 2px;
+}

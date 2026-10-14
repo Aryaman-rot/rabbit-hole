@@ -380,3 +380,44 @@ pm run build passes with the same route table (/ static, /signup dynamic, others
 
 **Old remote:** https://github.com/sudhendrak04/FWB-only-app.git
 **New remote:** https://github.com/Aryaman-rot/rabbit-hole.git
+
+---
+
+## 2026-10-11 - Landing Reveal Fix + /basics Onboarding Step with Fake Profile Store
+
+**Prompt (summarized):** Two parts. (A) Fix a bug where the landing write-on reveal could show no title/button: the boot script in layout.tsx only runs on a hard load at /, so after a hard reload on /onboarding a browser-back to / left the reveal classes unset. Make the Landing client component set the same html classes itself on mount (idempotent, same logic as the boot script: reduced-motion check, mask-support check, document.fonts.ready then h-begin) without changing the animation, title position or back-nav replay. (B) Rebuild /basics as a 3-step onboarding wizard on the existing glass panel (wine ~80%, blur, max-w-md) with progress dots, Back/Next, per-step validation, native fieldset/legend/label semantics, chip-style radio/checkbox buttons (selected = peach fill with wine text), visible focus rings, keyboard operability and prefers-reduced-motion support; errors always pair an icon with a plain sentence in light cream, linked via ria-describedby and announced in an ria-live region. Step 1 "About you" (first name, date of birth, I am), Step 2 "Who you'd like to meet" (Show me multi-select, age range 18-60 defaulting to age -/+ 5 clamped, city with a "Somewhere else" note), Step 3 "What you're looking for" (intent + required consent). Age gate at submit: under 18 saves nothing, shows the 18+ notice, signs out, and links back to /; impossible dates (future or older than 99) are rejected. Profile storage in src/lib/profile/ (profile-types.ts, profile-service.ts interface, ake-profile.ts with a DEV ONLY banner) keyed h:profile:<uid>, storing only the ten specified fields; prefill when a profile exists; on save push /quiz; keep the RequireAuth wrapper on /basics. Verify against a production build only, on port 3100. Commit Part A separately, then Part B as "feat: basics step with fake profile store" and push.
+
+**Files touched (Part A):**
+- src/components/landing.tsx (one line: the nimated flag is now just !reduce instead of !reduce && !root.classList.contains(animClass), so the component always (idempotently) adds the anim class and always runs the h-begin step on mount)
+
+**Files touched (Part B):**
+- src/lib/profile/profile-types.ts (new: Gender, InterestedIn, Intent, City unions, the Profile interface with exactly the ten fields, option lists, AGE_MIN_ALLOWED/AGE_MAX_ALLOWED, CITY_OUTSIDE_NOTE)
+- src/lib/profile/profile-service.ts (new: ProfileService interface with getProfile(uid) and saveProfile(uid, profile) - the Firestore swap point)
+- src/lib/profile/fake-profile.ts (new: DEV ONLY banner; per-user localStorage key h:profile:<uid>; runtime type guard that rebuilds a Profile from unknown JSON and rejects anything malformed; saveProfile writes a fixed-shape object so no extra fields can leak in; 300ms fake latency)
+- src/app/basics/page.tsx (now a client component: owns geBlocked state, renders RequireAuth allowSignedOut={ageBlocked} with either BasicsWizard or AgeBlockedNotice)
+- src/app/basics/basics-panel.tsx (rewritten: BasicsWizard + AgeBlockedNotice; three steps with keyed h-slide fade, dots, Back/Next, chip radios/checkboxes, age-range selects with age-derived defaults, "Somewhere else" note, per-step validation, age gate, save then outer.push("/quiz"))
+- src/components/require-auth.tsx (added an optional llowSignedOut prop so a child can keep rendering after signing the user out on purpose - required for the age-gate notice to survive its own signOut())
+- src/app/globals.css (chip styles: .rh-chip-input visually-hidden native input, .rh-chip, .rh-chip-selected peach fill + wine text, and .rh-chip-input:focus-visible + .rh-chip peach focus ring)
+- stage-files/stage-1-prototype.md (appended this entry)
+
+**Why:**
+- Part A: the reveal depended on the boot script having run. With the script guarded to /, a client-side navigation into / (browser-back after a reload elsewhere) had no classes; the old code only added h-begin when it had *just* added the anim class, so a pre-existing class (or React StrictMode's double-invoke) skipped the h-begin step entirely and left the title/button hidden. Making both steps idempotent removes the dependency on the script and on mount ordering, with no change to the CSS animation, the absolute title positioning, or the back-nav replay.
+- Part B: the fake profile service mirrors the auth fakes (interface + swappable export + DEV ONLY banner), so Firestore can replace it without touching the wizard; the storage contract stores only the ten specified fields to keep the prototype honest about what a real backend would receive.
+- llowSignedOut exists purely because the age gate must sign the user out *and* keep showing its notice; without it RequireAuth would immediately redirect to /signup and the notice would never be seen.
+
+**Result (production build, port 3100, headless Edge):**
+- 
+pm run build passes; route table unchanged (/basics static, /signup dynamic). ESLint clean on all touched files.
+- Validation messages all appear: step 1 empty (first name / date of birth / gender), invalid first name 123, future date, date older than 99, step 2 empty (Show me / city), lowest-age-above-highest, step 3 empty (intent / consent). Each pairs the TriangleAlert icon with a plain sentence and is wired through ria-describedby into the sr-only ria-live region.
+- Valid submit lands on /quiz. The stored profile has exactly the keys geMax, ageMin, birthDate, city, consentAt, firstName, gender, intent, interestedIn, schemaVersion under a single h:profile:<uid> key, with no email present.
+- Reload prefill verified across all three steps after a full page load: name "Meera", DOB 1994-03-02, gender Woman, "Show me" Women + Non-binary people, city Thane, age range 27-37, intent "Seeing where it goes".
+- Age gate verified: a 2012 birth date shows "You need to be 18 or older to use Rabbit Hole" with a link to /, writes NO h:profile: key, and clears the auth user from localStorage.
+- Age defaults derived from DOB (born 1996 -> 25-35) and clamped to 18-60; the "Somewhere else" note renders and still allows continuing.
+- WebGL canvas count is exactly 1 on /basics at 1440x900 and at 390x844, and still 1 after submitting to /quiz. Chip focus ring measures a 2px peach (rgb(255,168,150)) outline. No page errors in any run.
+- Cleanup: only the PID this session started (the 
+pm start -- -p 3100 tree) was stopped; ports 3100, 3000 and 3001 are all free, unrelated node processes (Adobe, an Electron app) were left alone, and package.json / package-lock.json show an empty diff after removing the temporary --no-save browser dependency.
+
+**Open questions:**
+- The consent checkbox is intentionally NOT restored from a saved profile (only the consentAt timestamp is stored), so resubmitting requires re-ticking it; flag if the product would rather remember the tick.
+- The age gate lives in the wizard rather than at the auth layer, so an under-18 account is still created by the fake sign-up first (then immediately signed out and not saved anywhere). When Firebase lands, the age check should ideally move server-side.
+- irstName accepts letters/spaces/hyphens/apostrophes up to 30 characters via a Unicode regex; no profanity or name-policy checks exist yet.
