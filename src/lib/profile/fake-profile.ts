@@ -53,10 +53,16 @@ const isCity = (value: unknown): value is City =>
   value === "Navi Mumbai" ||
   value === "Somewhere else";
 
-/** Rebuild a validated Profile from unknown JSON, or null if it is unusable. */
+/**
+ * Rebuild a validated Profile from unknown JSON, or null if it is unusable.
+ * Accepts schemaVersion 1 (no genderSelfDescribed) and 2; newer/unknown
+ * versions are rejected so a bad record can never silently render.
+ */
 const parseProfile = (raw: unknown): Profile | null => {
   if (!raw || typeof raw !== "object") return null;
   const value = raw as Record<string, unknown>;
+  const version = value.schemaVersion;
+  if (version !== 1 && version !== 2) return null;
   if (
     typeof value.firstName !== "string" ||
     typeof value.birthDate !== "string" ||
@@ -67,22 +73,28 @@ const parseProfile = (raw: unknown): Profile | null => {
     typeof value.ageMin !== "number" ||
     typeof value.ageMax !== "number" ||
     !isIntent(value.intent) ||
-    typeof value.consentAt !== "string" ||
-    value.schemaVersion !== 1
+    typeof value.consentAt !== "string"
   ) {
     return null;
   }
+  const selfDescribed =
+    version === 2 &&
+    typeof value.genderSelfDescribed === "string" &&
+    value.genderSelfDescribed.length > 0
+      ? value.genderSelfDescribed
+      : undefined;
   return {
     firstName: value.firstName,
     birthDate: value.birthDate,
     gender: value.gender,
+    ...(selfDescribed ? { genderSelfDescribed: selfDescribed } : {}),
     interestedIn: value.interestedIn,
     city: value.city,
     ageMin: value.ageMin,
     ageMax: value.ageMax,
     intent: value.intent,
     consentAt: value.consentAt,
-    schemaVersion: 1,
+    schemaVersion: version,
   };
 };
 
@@ -101,17 +113,21 @@ export const fakeProfile: ProfileService = {
   async saveProfile(uid, profile) {
     await delay(FAKE_LATENCY_MS);
     // Store only the known fields, in a fixed shape - nothing else leaks in.
+    // genderSelfDescribed is written only when the user actually supplied it.
     const stored: Profile = {
       firstName: profile.firstName,
       birthDate: profile.birthDate,
       gender: profile.gender,
+      ...(profile.genderSelfDescribed
+        ? { genderSelfDescribed: profile.genderSelfDescribed }
+        : {}),
       interestedIn: profile.interestedIn,
       city: profile.city,
       ageMin: profile.ageMin,
       ageMax: profile.ageMax,
       intent: profile.intent,
       consentAt: profile.consentAt,
-      schemaVersion: 1,
+      schemaVersion: 2,
     };
     try {
       window.localStorage.setItem(storageKey(uid), JSON.stringify(stored));

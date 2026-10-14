@@ -56,6 +56,14 @@
 
 :root {
   color-scheme: dark;
+  /* Design bar tokens — see docs/design-theme.md "Design bar" */
+  --rh-hairline: rgba(255, 255, 255, 0.1);
+  --rh-radius-sm: 10px;
+  --rh-radius-md: 14px;
+  --rh-radius-lg: 20px;
+  --rh-radius-pill: 9999px;
+  --rh-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --rh-error-ink: #ffe9e3;
   --background: #030303;
   --foreground: oklch(0.985 0 0);
   --card: oklch(1 0 0);
@@ -466,6 +474,19 @@
     animation: none;
   }
 
+  .rh-chip:active {
+    transform: none;
+  }
+
+  .rh-input,
+  .rh-chip,
+  .rh-show-btn,
+  .rh-range-input::-webkit-slider-thumb,
+  .rh-range-input::-moz-range-thumb {
+    transition: none;
+  }
+
+
   .rh-slide {
     animation: none;
   }
@@ -541,36 +562,83 @@
   background: rgba(255, 168, 150, 0.22);
 }
 
+/* ------------------------------------------------------------------ */
+/* Design bar primitives � see docs/design-theme.md "Design bar"      */
+
 .rh-label {
   display: block;
   margin-bottom: 0.5rem;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 168, 150, 0.8);
+}
+
+.rh-hint {
+  margin-top: 0.5rem;
   font-size: 0.8125rem;
-  font-weight: 500;
-  color: rgba(255, 168, 150, 0.9);
+  line-height: 1.45;
+  color: rgba(255, 168, 150, 0.75);
 }
 
 .rh-input {
   width: 100%;
   padding: 0.75rem 1rem;
-  border: 1px solid rgba(255, 168, 150, 0.28);
-  border-radius: 0.75rem;
-  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--rh-radius-md);
+  background: rgba(0, 0, 0, 0.32);
   color: #fff;
   font-size: 0.9375rem;
-  line-height: 1.25;
+  line-height: 1.5;
+  caret-color: var(--color-primary-soft);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 44px -30px rgba(0, 0, 0, 0.9);
+  transition:
+    border-color 0.18s var(--rh-ease),
+    box-shadow 0.18s var(--rh-ease);
 }
 
 .rh-input::placeholder {
-  color: rgba(255, 168, 150, 0.45);
+  color: rgba(255, 168, 150, 0.4);
 }
 
-.rh-input[aria-invalid="true"] {
-  border-color: var(--color-primary-soft);
+.rh-input:hover {
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .rh-input:focus-visible {
   outline: 2px solid var(--color-primary-soft);
-  outline-offset: 1px;
+  outline-offset: 2px;
+  border-color: rgba(255, 168, 150, 0.5);
+}
+
+.rh-input[aria-invalid="true"] {
+  border-color: rgba(255, 168, 150, 0.55);
+}
+
+/* Kill the browser autofill wash (yellow/blue) in favour of our own surface. */
+.rh-input:-webkit-autofill,
+.rh-input:-webkit-autofill:hover,
+.rh-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff;
+  caret-color: var(--color-primary-soft);
+  transition: background-color 100000s ease-in-out 0s;
+  box-shadow:
+    inset 0 0 0 1000px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.rh-input-number {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.rh-input-number::-webkit-outer-spin-button,
+.rh-input-number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .rh-password-wrap {
@@ -592,11 +660,11 @@
   width: 2rem;
   height: 2rem;
   border: 0;
-  border-radius: 0.5rem;
+  border-radius: var(--rh-radius-sm);
   background: none;
   color: rgba(255, 168, 150, 0.8);
   cursor: pointer;
-  transition: color 0.2s ease;
+  transition: color 0.18s var(--rh-ease);
 }
 
 .rh-show-btn:hover {
@@ -614,8 +682,8 @@
   gap: 0.5rem;
   margin-top: 0.5rem;
   font-size: 0.8125rem;
-  line-height: 1.4;
-  color: #ffe9e3;
+  line-height: 1.45;
+  color: var(--rh-error-ink);
 }
 
 .rh-error svg {
@@ -640,6 +708,7 @@
   color: rgba(255, 168, 150, 0.75);
 }
 
+/* Chips � custom-styled radios/checkboxes, native inputs kept for a11y */
 .rh-chip-input {
   position: absolute;
   width: 1px;
@@ -657,22 +726,27 @@
   align-items: center;
   justify-content: center;
   padding: 0.625rem 1rem;
-  border: 1px solid rgba(255, 168, 150, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 9999px;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.22);
   color: rgba(255, 255, 255, 0.92);
   font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.25;
   cursor: pointer;
   transition:
-    background-color 0.2s ease,
-    color 0.2s ease,
-    border-color 0.2s ease;
+    background-color 0.18s var(--rh-ease),
+    border-color 0.18s var(--rh-ease),
+    color 0.18s var(--rh-ease),
+    transform 0.18s var(--rh-ease);
 }
 
 .rh-chip:hover {
-  border-color: var(--color-primary-soft);
+  border-color: rgba(255, 168, 150, 0.45);
+}
+
+.rh-chip:active {
+  transform: scale(0.98);
 }
 
 .rh-chip-selected {
@@ -684,4 +758,153 @@
 .rh-chip-input:focus-visible + .rh-chip {
   outline: 2px solid var(--color-primary-soft);
   outline-offset: 2px;
+}
+
+/* Collapsible reveal (e.g. the self-described gender field) */
+.rh-reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.22s var(--rh-ease),
+    opacity 0.22s var(--rh-ease);
+}
+
+.rh-reveal > * {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.rh-reveal-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* Dual-handle age range: two overlaid native sliders on one track */
+.rh-range {
+  position: relative;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+}
+
+.rh-range-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.rh-range-fill {
+  position: absolute;
+  height: 2px;
+  border-radius: 9999px;
+  background: var(--color-primary-soft);
+}
+
+.rh-range-input {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2.25rem;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.rh-range-input::-webkit-slider-runnable-track {
+  height: 2.25rem;
+  background: none;
+  border: 0;
+}
+
+.rh-range-input::-moz-range-track {
+  height: 2.25rem;
+  background: none;
+  border: 0;
+}
+
+.rh-range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: var(--color-primary-soft);
+  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.9);
+  pointer-events: auto;
+  cursor: grab;
+  transition: transform 0.18s var(--rh-ease);
+}
+
+.rh-range-input::-moz-range-thumb {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: var(--color-primary-soft);
+  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.9);
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.rh-range-input:active::-webkit-slider-thumb {
+  transform: scale(0.98);
+  cursor: grabbing;
+}
+
+.rh-range-input:focus-visible {
+  outline: none;
+}
+
+.rh-range-input:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--color-primary-soft);
+  outline-offset: 2px;
+}
+
+.rh-range-input:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--color-primary-soft);
+  outline-offset: 2px;
+}
+
+.rh-age-line {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Global polish: selection + thin scrollbars + peach caret everywhere */
+::selection {
+  background: var(--color-primary-soft);
+  color: var(--color-wine);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 168, 150, 0.28) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 168, 150, 0.28);
+  border-radius: 9999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rh-reveal {
+    transition: none;
+  }
 }

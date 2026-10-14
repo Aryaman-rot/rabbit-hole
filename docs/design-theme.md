@@ -36,6 +36,54 @@ brand red). Every error/destructive state must pair colour with **an icon and
 explicit wording** (e.g. warning icon + "We couldn't save your answer"), never
 a bare red field or red text.
 
+## Design bar (applies to every screen, always)
+
+This is the standing bar for all UI work in this repo. If a screen doesn't meet
+it, the screen is wrong — not the bar. Tokens live in `:root` in
+`src/app/globals.css` (`--rh-hairline`, `--rh-radius-*`, `--rh-ease`,
+`--rh-error-ink`) so rules stay consistent across screens.
+
+**Character.** Premium and restrained — a private members' club, not a SaaS
+dashboard. Restraint is the point: few borders, few fills, generous space.
+
+**No browser-default control may ever be visible.** Date pickers, `<select>`
+dropdowns, checkboxes, radios and number spinners must be custom-styled or
+replaced entirely. Prefer replacing with purpose-built controls (see
+`src/components/form/`): `Field` / `FieldGroup`, `ChipRadioGroup` /
+`ChipCheckGroup`, `DateOfBirthInput`, `AgeRangeInput`. Native inputs stay
+underneath for semantics, keyboard and screen readers, but are visually
+replaced.
+
+**Surfaces.** Hairline borders `rgba(255,255,255,.10)` (never peach outlines on
+idle fields), a subtle inner top highlight, soft long shadows
+(`0 18px 44px -30px rgba(0,0,0,.9)`), and a consistent radius scale: `10px`
+small, `14px` controls, `20px` panels, `9999px` pills.
+
+**Type.** Inter throughout. Headings tight (`letter-spacing: -0.02em`). Labels
+are 12px, uppercase, `0.08em` tracking, peach at ~80% opacity. Body copy
+15–16px with generous line-height (1.5–1.6).
+
+**Space.** 4px spacing grid, generous whitespace. One clear primary action per
+screen.
+
+**Motion.** 150–250ms, `cubic-bezier(0.22, 1, 0.36, 1)`. Press-scale `0.98`.
+Animate opacity and transform only — never width, height, top/left, or colour
+of layout-affecting properties. `prefers-reduced-motion` must collapse all of
+it to instant.
+
+**Colour discipline.** Chili red only for the single primary action. Peach for
+selected/active accents. Errors are never red text: an icon plus a plain
+sentence, in light cream.
+
+**Focus.** Elegant and consistent: 2px peach (`#FFA896`) outline with an offset.
+Visible on every interactive element.
+
+**Browser noise.** Autofill must be styled to our own surface (no yellow/blue
+browser wash). Peach caret (`caret-color`) and selection colour. Thin
+scrollbars.
+
+**Copy.** Short and warm. No exclamation marks, no emojis.
+
 ## Landing page spec (as built)
 
 Fonts: `Inter` bound to `--font-sans` (all weights, variable) and

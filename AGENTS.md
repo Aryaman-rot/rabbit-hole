@@ -8,6 +8,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Design
+
+Every UI task must meet the **Design bar** in `docs/design-theme.md` — no
+browser-default controls (no visible date/select/checkbox/radio/spinner);
+reuse or extend the shared controls in `src/components/form/`.
+
 ## Git
 
 - Remote `origin` is `https://github.com/Aryaman-rot/rabbit-hole.git`. Never

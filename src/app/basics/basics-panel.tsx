@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TriangleAlert } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -9,6 +9,7 @@ import { fakeProfile } from "@/lib/profile/fake-profile";
 import {
   AGE_MAX_ALLOWED,
   AGE_MIN_ALLOWED,
+  AGE_RANGE_FALLBACK,
   CITY_OPTIONS,
   CITY_OUTSIDE_NOTE,
   GENDER_OPTIONS,
@@ -19,9 +20,20 @@ import {
   type Intent,
   type InterestedIn,
 } from "@/lib/profile/profile-types";
+import { Field } from "@/components/form/field";
+import { ChipCheckGroup, ChipRadioGroup } from "@/components/form/chip-group";
+import {
+  DateOfBirthInput,
+  type DobParts,
+} from "@/components/form/date-of-birth-input";
+import { AgeRangeInput } from "@/components/form/age-range-input";
 import { cn } from "@/lib/utils";
 
-const STEPS = ["About you", "Who you'd like to meet", "What you're looking for"] as const;
+const STEPS = [
+  "About you",
+  "Who you'd like to meet",
+  "What you're looking for",
+] as const;
 
 const FIRST_NAME_PATTERN = /^[\p{L}][\p{L} '\u2019-]{0,29}$/u;
 
@@ -30,7 +42,9 @@ const MESSAGE = {
   firstNameInvalid: "Use 1-30 letters, spaces, hyphens or apostrophes.",
   birthDateRequired: "Please add your date of birth.",
   birthDateInvalid:
-    "Please check your date of birth - it can't be in the future or more than 99 years ago.",
+    "That date doesn't exist - please check the day, month and year.",
+  birthDateFuture: "Your date of birth can't be in the future.",
+  birthDateTooOld: "Please check your date of birth - it looks over 99 years ago.",
   genderRequired: "Please choose one option.",
   interestedInRequired: "Please choose at least one option.",
   ageRangeInvalid: "The lowest age can't be above the highest age.",
@@ -39,10 +53,33 @@ const MESSAGE = {
   consentRequired: "Please agree before continuing.",
 } as const;
 
+const EMPTY_DOB: DobParts = { day: "", month: "", year: "" };
+
 type Errors = Partial<Record<string, string>>;
 
-function ageFromBirthDate(birthDate: string, now = new Date()): number | null {
-  const [year, month, day] = birthDate.split("-").map(Number);
+const pad = (value: string) => value.padStart(2, "0");
+
+/** ISO date string, or null when a part is missing or the date doesn't exist. */
+function toIsoDate(parts: DobParts): string | null {
+  if (!parts.day || !parts.month || !parts.year) return null;
+  const day = Number(parts.day);
+  const month = Number(parts.month);
+  const year = Number(parts.year);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const date = new Date(year, month - 1, day);
+  // Rejects impossible dates such as 31 February.
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return `${year}-${pad(String(month))}-${pad(String(day))}`;
+}
+
+function ageFromIsoDate(isoDate: string, now = new Date()): number | null {
+  const [year, month, day] = isoDate.split("-").map(Number);
   if (!year || !month || !day) return null;
   let age = now.getFullYear() - year;
   const beforeBirthday =
@@ -52,14 +89,25 @@ function ageFromBirthDate(birthDate: string, now = new Date()): number | null {
   return age;
 }
 
-function isPossibleBirthDate(birthDate: string, now = new Date()): boolean {
-  const age = ageFromBirthDate(birthDate, now);
-  if (age === null) return false;
-  return age >= 0 && age <= 99;
+/** Split a stored ISO date back into the three fields. */
+function fromIsoDate(isoDate: string): DobParts {
+  const [year, month, day] = isoDate.split("-");
+  if (!year || !month || !day) return EMPTY_DOB;
+  return { day, month, year };
 }
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(Math.max(value, min), max);
+function defaultAgeRange(age: number | null): { from: number; to: number } {
+  if (age === null) {
+    return {
+      from: AGE_RANGE_FALLBACK.min,
+      to: AGE_RANGE_FALLBACK.max,
+    };
+  }
+  return {
+    from: Math.max(age - 5, AGE_MIN_ALLOWED),
+    to: Math.min(age + 5, AGE_MAX_ALLOWED),
+  };
+}
 
 export function BasicsWizard({
   onAgeBlocked,
@@ -71,45 +119,39 @@ export function BasicsWizard({
 
   const [step, setStep] = useState(0);
   const [firstName, setFirstName] = useState("");
-  const [birthDate, setBirthDate] = useState("");
+  const [dob, setDob] = useState<DobParts>(EMPTY_DOB);
   const [gender, setGender] = useState<Gender | "">("");
+  const [genderSelfDescribed, setGenderSelfDescribed] = useState("");
   const [interestedIn, setInterestedIn] = useState<InterestedIn[]>([]);
   const [city, setCity] = useState<City | "">("");
-  const [ageMin, setAgeMin] = useState(AGE_MIN_ALLOWED);
-  const [ageMax, setAgeMax] = useState(AGE_MIN_ALLOWED);
-  const [ageRangeTouched, setAgeRangeTouched] = useState(false);
+  const [ageRange, setAgeRange] = useState<{ from: number; to: number }>({
+    from: AGE_RANGE_FALLBACK.min,
+    to: AGE_RANGE_FALLBACK.max,
+  });
   const [intent, setIntent] = useState<Intent | "">("");
   const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [prefilled, setPrefilled] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const firstNameErrorId = useId();
-  const birthDateErrorId = useId();
-  const genderErrorId = useId();
-  const interestedInErrorId = useId();
-  const ageRangeErrorId = useId();
-  const cityErrorId = useId();
-  const intentErrorId = useId();
-  const consentErrorId = useId();
+  const isoDate = toIsoDate(dob);
+  const age = isoDate ? ageFromIsoDate(isoDate) : null;
 
   useEffect(() => {
     if (!user || prefilled) return;
     let cancelled = false;
     fakeProfile.getProfile(user.uid).then((profile) => {
-      if (cancelled || !profile) {
-        setPrefilled(true);
-        return;
+      if (cancelled) return;
+      if (profile) {
+        setFirstName(profile.firstName);
+        setDob(fromIsoDate(profile.birthDate));
+        setGender(profile.gender);
+        setGenderSelfDescribed(profile.genderSelfDescribed ?? "");
+        setInterestedIn(profile.interestedIn);
+        setCity(profile.city);
+        setAgeRange({ from: profile.ageMin, to: profile.ageMax });
+        setIntent(profile.intent);
       }
-      setFirstName(profile.firstName);
-      setBirthDate(profile.birthDate);
-      setGender(profile.gender);
-      setInterestedIn(profile.interestedIn);
-      setCity(profile.city);
-      setAgeMin(profile.ageMin);
-      setAgeMax(profile.ageMax);
-      setAgeRangeTouched(true);
-      setIntent(profile.intent);
       setPrefilled(true);
     });
     return () => {
@@ -117,19 +159,38 @@ export function BasicsWizard({
     };
   }, [user, prefilled]);
 
-  function applyDefaultAgeRange(nextAge: number) {
-    if (ageRangeTouched) return;
-    setAgeMin(clamp(nextAge - 5, AGE_MIN_ALLOWED, AGE_MAX_ALLOWED));
-    setAgeMax(clamp(nextAge + 5, AGE_MIN_ALLOWED, AGE_MAX_ALLOWED));
+  /** Age gate: nothing is stored, the user is signed out and sent home. */
+  async function blockUnder18() {
+    setSaving(false);
+    onAgeBlocked();
+    try {
+      await signOut();
+    } catch {
+      /* the fake auth cannot fail; ignore */
+    }
   }
 
-  function handleBirthDateChange(value: string) {
-    setBirthDate(value);
+  function handleDobChange(next: DobParts) {
+    setDob(next);
     if (errors.birthDate) setErrors((prev) => ({ ...prev, birthDate: undefined }));
-    if (value && isPossibleBirthDate(value)) {
-      const nextAge = ageFromBirthDate(value);
-      if (nextAge !== null) applyDefaultAgeRange(nextAge);
-    }
+    const nextIso = toIsoDate(next);
+    if (!nextIso) return;
+    const nextAge = ageFromIsoDate(nextIso);
+    if (nextAge === null || nextAge < 0 || nextAge > 99) return;
+    // Re-derive the suggested range until the user edits it themselves.
+    setAgeRange((current) =>
+      current.from === AGE_RANGE_FALLBACK.min &&
+      current.to === AGE_RANGE_FALLBACK.max
+        ? defaultAgeRange(nextAge)
+        : current,
+    );
+  }
+
+  function handleGenderChange(next: Gender) {
+    setGender(next);
+    if (errors.gender) setErrors((prev) => ({ ...prev, gender: undefined }));
+    // Switching away from "Another" clears the free text; nothing is stored for it.
+    if (next !== "another") setGenderSelfDescribed("");
   }
 
   function toggleInterestedIn(value: InterestedIn) {
@@ -151,9 +212,14 @@ export function BasicsWizard({
       else if (!FIRST_NAME_PATTERN.test(trimmed)) {
         found.firstName = MESSAGE.firstNameInvalid;
       }
-      if (!birthDate) found.birthDate = MESSAGE.birthDateRequired;
-      else if (!isPossibleBirthDate(birthDate)) {
+      if (!dob.day || !dob.month || !dob.year) {
+        found.birthDate = MESSAGE.birthDateRequired;
+      } else if (!isoDate) {
         found.birthDate = MESSAGE.birthDateInvalid;
+      } else if (age !== null && age < 0) {
+        found.birthDate = MESSAGE.birthDateFuture;
+      } else if (age === null || age > 99) {
+        found.birthDate = MESSAGE.birthDateTooOld;
       }
       if (!gender) found.gender = MESSAGE.genderRequired;
     }
@@ -161,7 +227,13 @@ export function BasicsWizard({
       if (interestedIn.length === 0) {
         found.interestedIn = MESSAGE.interestedInRequired;
       }
-      if (ageMin > ageMax) found.ageRange = MESSAGE.ageRangeInvalid;
+      if (
+        ageRange.from < AGE_MIN_ALLOWED ||
+        ageRange.to < AGE_MIN_ALLOWED ||
+        ageRange.from > ageRange.to
+      ) {
+        found.ageRange = MESSAGE.ageRangeInvalid;
+      }
       if (!city) found.city = MESSAGE.cityRequired;
     }
     if (index === 2) {
@@ -173,10 +245,18 @@ export function BasicsWizard({
 
   function handleNext() {
     const found = validateStep(step);
-    setErrors(found);
-    if (Object.keys(found).length === 0) {
-      setStep((current) => Math.min(current + 1, STEPS.length - 1));
+    if (Object.keys(found).length > 0) {
+      setErrors(found);
+      return;
     }
+    // Age gate lives at the end of step 1 as well as the final submit, so a
+    // minor can never reach step 2.
+    if (step === 0 && age !== null && age < 18) {
+      void blockUnder18();
+      return;
+    }
+    setErrors({});
+    setStep((current) => Math.min(current + 1, STEPS.length - 1));
   }
 
   function handleBack() {
@@ -191,22 +271,18 @@ export function BasicsWizard({
       return;
     }
     if (!user) return;
-
-    const submitAge = ageFromBirthDate(birthDate);
-    if (submitAge === null || !isPossibleBirthDate(birthDate)) {
+    if (!isoDate || age === null) {
       setErrors({ birthDate: MESSAGE.birthDateInvalid });
       setStep(0);
       return;
     }
-    if (submitAge < 18) {
-      // Age gate: persist nothing, surface the block, sign out, offer a way home.
-      setSaving(false);
-      onAgeBlocked();
-      try {
-        await signOut();
-      } catch {
-        /* fake auth cannot fail; ignore */
-      }
+    if (age > 99) {
+      setErrors({ birthDate: MESSAGE.birthDateTooOld });
+      setStep(0);
+      return;
+    }
+    if (age < 18) {
+      await blockUnder18();
       return;
     }
 
@@ -214,26 +290,24 @@ export function BasicsWizard({
     try {
       await fakeProfile.saveProfile(user.uid, {
         firstName: firstName.trim(),
-        birthDate,
+        birthDate: isoDate,
         gender: gender as Gender,
+        ...(gender === "another" && genderSelfDescribed.trim()
+          ? { genderSelfDescribed: genderSelfDescribed.trim() }
+          : {}),
         interestedIn,
         city: city as City,
-        ageMin,
-        ageMax,
+        ageMin: ageRange.from,
+        ageMax: ageRange.to,
         intent: intent as Intent,
         consentAt: new Date().toISOString(),
-        schemaVersion: 1,
+        schemaVersion: 2,
       });
       router.push("/quiz");
     } finally {
       setSaving(false);
     }
   }
-
-  const ageOptions = Array.from(
-    { length: AGE_MAX_ALLOWED - AGE_MIN_ALLOWED + 1 },
-    (_, index) => AGE_MIN_ALLOWED + index,
-  );
 
   const firstError = Object.values(errors).find(Boolean) ?? "";
 
@@ -246,13 +320,12 @@ export function BasicsWizard({
               key={label}
               className={cn(
                 "rh-dot",
-                index === step && "rh-dot-active",
-                index !== step && "h-1.5 w-1.5 rounded-full bg-primary-soft/35",
+                index === step ? "rh-dot-active" : "h-1.5 w-1.5 bg-primary-soft/35",
               )}
             />
           ))}
         </div>
-        <p className="mt-3 text-center text-xs text-primary-soft/80">
+        <p className="mt-4 text-center text-xs text-primary-soft/80">
           Step {step + 1} of {STEPS.length}
         </p>
 
@@ -262,286 +335,143 @@ export function BasicsWizard({
 
         {step === 0 && (
           <div key="step-0" className="rh-slide mt-6">
-            <h1 className="text-2xl font-bold text-white">About you</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-white">
+              About you
+            </h1>
 
-            <label htmlFor="basics-first-name" className="rh-label mt-6">
-              First name
-            </label>
-            <input
-              id="basics-first-name"
-              type="text"
-              autoComplete="given-name"
-              maxLength={30}
-              value={firstName}
-              onChange={(event) => {
-                setFirstName(event.target.value);
-                if (errors.firstName) {
-                  setErrors((prev) => ({ ...prev, firstName: undefined }));
-                }
-              }}
-              aria-invalid={errors.firstName ? true : undefined}
-              aria-describedby={errors.firstName ? firstNameErrorId : undefined}
-              className="rh-input"
-              placeholder="Aarav"
-            />
-            {errors.firstName && (
-              <p id={firstNameErrorId} className="rh-error">
-                <TriangleAlert aria-hidden="true" />
-                <span>{errors.firstName}</span>
-              </p>
-            )}
-
-            <label htmlFor="basics-birth-date" className="rh-label mt-5">
-              Date of birth
-            </label>
-            <input
-              id="basics-birth-date"
-              type="date"
-              autoComplete="bday"
-              value={birthDate}
-              onChange={(event) => handleBirthDateChange(event.target.value)}
-              aria-invalid={errors.birthDate ? true : undefined}
-              aria-describedby={errors.birthDate ? birthDateErrorId : undefined}
-              className="rh-input"
-            />
-            {errors.birthDate && (
-              <p id={birthDateErrorId} className="rh-error">
-                <TriangleAlert aria-hidden="true" />
-                <span>{errors.birthDate}</span>
-              </p>
-            )}
-
-            <fieldset
-              className="mt-5"
-              aria-invalid={errors.gender ? true : undefined}
-              aria-describedby={errors.gender ? genderErrorId : undefined}
+            <Field
+              label="First name"
+              className="mt-6"
+              error={errors.firstName}
             >
-              <legend className="rh-label">I am</legend>
-              <div className="flex flex-wrap gap-2">
-                {GENDER_OPTIONS.map((option) => (
-                  <label key={option.value} className="inline-flex">
-                    <input
-                      type="radio"
-                      name="basics-gender"
-                      className="rh-chip-input"
-                      checked={gender === option.value}
-                      onChange={() => {
-                        setGender(option.value);
-                        if (errors.gender) {
-                          setErrors((prev) => ({ ...prev, gender: undefined }));
-                        }
-                      }}
-                    />
-                    <span
-                      className={cn(
-                        "rh-chip",
-                        gender === option.value && "rh-chip-selected",
-                      )}
-                    >
-                      {option.label}
-                    </span>
-                  </label>
-                ))}
+              <input
+                type="text"
+                autoComplete="given-name"
+                maxLength={30}
+                value={firstName}
+                onChange={(event) => {
+                  setFirstName(event.target.value);
+                  if (errors.firstName) {
+                    setErrors((prev) => ({ ...prev, firstName: undefined }));
+                  }
+                }}
+                className="rh-input"
+                placeholder="Aarav"
+              />
+            </Field>
+
+            <div className="mt-5">
+              <DateOfBirthInput
+                label="Date of birth"
+                value={dob}
+                onChange={handleDobChange}
+                error={errors.birthDate}
+                hint="For age-appropriate matching only."
+              />
+            </div>
+
+            <ChipRadioGroup
+              className="mt-5"
+              legend="I am"
+              name="basics-gender"
+              options={GENDER_OPTIONS}
+              value={gender}
+              onChange={handleGenderChange}
+              error={errors.gender}
+            />
+
+            <div
+              className={cn("rh-reveal", gender === "another" && "rh-reveal-open")}
+            >
+              <div>
+                <Field
+                  label="In your own words"
+                  className="mt-4"
+                >
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    maxLength={30}
+                    value={genderSelfDescribed}
+                    onChange={(event) =>
+                      setGenderSelfDescribed(event.target.value)
+                    }
+                    placeholder="Optional"
+                    tabIndex={gender === "another" ? 0 : -1}
+                    aria-hidden={gender === "another" ? undefined : true}
+                    className="rh-input"
+                  />
+                </Field>
               </div>
-            </fieldset>
-            {errors.gender && (
-              <p id={genderErrorId} className="rh-error">
-                <TriangleAlert aria-hidden="true" />
-                <span>{errors.gender}</span>
-              </p>
-            )}
+            </div>
           </div>
         )}
 
         {step === 1 && (
           <div key="step-1" className="rh-slide mt-6">
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-white">
               Who you&rsquo;d like to meet
             </h1>
 
-            <fieldset
+            <ChipCheckGroup
               className="mt-6"
-              aria-invalid={errors.interestedIn ? true : undefined}
-              aria-describedby={
-                errors.interestedIn ? interestedInErrorId : undefined
-              }
-            >
-              <legend className="rh-label">Show me</legend>
-              <div className="flex flex-wrap gap-2">
-                {INTERESTED_IN_OPTIONS.map((option) => (
-                  <label key={option.value} className="inline-flex">
-                    <input
-                      type="checkbox"
-                      className="rh-chip-input"
-                      checked={interestedIn.includes(option.value)}
-                      onChange={() => toggleInterestedIn(option.value)}
-                    />
-                    <span
-                      className={cn(
-                        "rh-chip",
-                        interestedIn.includes(option.value) &&
-                          "rh-chip-selected",
-                      )}
-                    >
-                      {option.label}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            {errors.interestedIn && (
-              <p id={interestedInErrorId} className="rh-error">
-                <TriangleAlert aria-hidden="true" />
-                <span>{errors.interestedIn}</span>
-              </p>
-            )}
+              legend="Show me"
+              options={INTERESTED_IN_OPTIONS}
+              values={interestedIn}
+              onToggle={toggleInterestedIn}
+              error={errors.interestedIn}
+            />
 
-            <fieldset
-              className="mt-5"
-              aria-invalid={errors.ageRange ? true : undefined}
-              aria-describedby={errors.ageRange ? ageRangeErrorId : undefined}
-            >
-              <legend className="rh-label">Age range</legend>
-              <div className="flex items-center gap-3">
-                <select
-                  aria-label="Lowest age"
-                  className="rh-input"
-                  value={ageMin}
-                  onChange={(event) => {
-                    setAgeRangeTouched(true);
-                    setAgeMin(Number(event.target.value));
-                    if (errors.ageRange) {
-                      setErrors((prev) => ({ ...prev, ageRange: undefined }));
-                    }
-                  }}
-                >
-                  {ageOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <span aria-hidden="true" className="text-primary-soft">
-                  to
-                </span>
-                <select
-                  aria-label="Highest age"
-                  className="rh-input"
-                  value={ageMax}
-                  onChange={(event) => {
-                    setAgeRangeTouched(true);
-                    setAgeMax(Number(event.target.value));
-                    if (errors.ageRange) {
-                      setErrors((prev) => ({ ...prev, ageRange: undefined }));
-                    }
-                  }}
-                >
-                  {ageOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </fieldset>
-            {errors.ageRange && (
-              <p id={ageRangeErrorId} className="rh-error">
-                <TriangleAlert aria-hidden="true" />
-                <span>{errors.ageRange}</span>
-              </p>
-            )}
+            <div className="mt-6">
+              <AgeRangeInput
+                label="Age range"
+                from={ageRange.from}
+                to={ageRange.to}
+                onChange={setAgeRange}
+                error={errors.ageRange}
+              />            </div>
 
-            <fieldset
-              className="mt-5"
-              aria-invalid={errors.city ? true : undefined}
-              aria-describedby={errors.city ? cityErrorId : undefined}
-            >
-              <legend className="rh-label">City</legend>
-              <div className="flex flex-wrap gap-2">
-                {CITY_OPTIONS.map((option) => (
-                  <label key={option.value} className="inline-flex">
-                    <input
-                      type="radio"
-                      name="basics-city"
-                      className="rh-chip-input"
-                      checked={city === option.value}
-                      onChange={() => {
-                        setCity(option.value);
-                        if (errors.city) {
-                          setErrors((prev) => ({ ...prev, city: undefined }));
-                        }
-                      }}
-                    />
-                    <span
-                      className={cn(
-                        "rh-chip",
-                        city === option.value && "rh-chip-selected",
-                      )}
-                    >
-                      {option.label}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            {errors.city && (
-              <p id={cityErrorId} className="rh-error">
-                <TriangleAlert aria-hidden="true" />
-                <span>{errors.city}</span>
-              </p>
-            )}
+            <ChipRadioGroup
+              className="mt-6"
+              legend="City"
+              name="basics-city"
+              options={CITY_OPTIONS}
+              value={city}
+              onChange={(value) => {
+                setCity(value);
+                if (errors.city) {
+                  setErrors((prev) => ({ ...prev, city: undefined }));
+                }
+              }}
+              error={errors.city}
+            />
 
             {city === "Somewhere else" && (
-              <p className="mt-4 text-sm text-primary-soft">{CITY_OUTSIDE_NOTE}</p>
+              <p className="rh-hint">{CITY_OUTSIDE_NOTE}</p>
             )}
           </div>
         )}
 
         {step === 2 && (
           <div key="step-2" className="rh-slide mt-6">
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-white">
               What you&rsquo;re looking for
             </h1>
 
-            <fieldset
+            <ChipRadioGroup
               className="mt-6"
-              aria-invalid={errors.intent ? true : undefined}
-              aria-describedby={errors.intent ? intentErrorId : undefined}
-            >
-              <legend className="rh-label">I&rsquo;m looking for</legend>
-              <div className="flex flex-wrap gap-2">
-                {INTENT_OPTIONS.map((option) => (
-                  <label key={option.value} className="inline-flex">
-                    <input
-                      type="radio"
-                      name="basics-intent"
-                      className="rh-chip-input"
-                      checked={intent === option.value}
-                      onChange={() => {
-                        setIntent(option.value);
-                        if (errors.intent) {
-                          setErrors((prev) => ({ ...prev, intent: undefined }));
-                        }
-                      }}
-                    />
-                    <span
-                      className={cn(
-                        "rh-chip",
-                        intent === option.value && "rh-chip-selected",
-                      )}
-                    >
-                      {option.label}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            {errors.intent && (
-              <p id={intentErrorId} className="rh-error">
-                <TriangleAlert aria-hidden="true" />
-                <span>{errors.intent}</span>
-              </p>
-            )}
+              legend="I&rsquo;m looking for"
+              name="basics-intent"
+              options={INTENT_OPTIONS}
+              value={intent}
+              onChange={(value) => {
+                setIntent(value);
+                if (errors.intent) {
+                  setErrors((prev) => ({ ...prev, intent: undefined }));
+                }
+              }}
+              error={errors.intent}
+            />
 
             <div className="mt-6 flex items-start gap-3">
               <input
@@ -555,17 +485,16 @@ export function BasicsWizard({
                   }
                 }}
                 aria-invalid={errors.consent ? true : undefined}
-                aria-describedby={errors.consent ? consentErrorId : undefined}
                 className="rh-focus rh-check"
               />
-              <label htmlFor="basics-consent" className="text-sm text-primary-soft">
+              <label htmlFor="basics-consent" className="text-sm leading-relaxed text-primary-soft">
                 I agree to Rabbit Hole using these details, including who
                 I&rsquo;m interested in, to show me relevant people. I can
                 change or delete them later.
               </label>
             </div>
             {errors.consent && (
-              <p id={consentErrorId} className="rh-error mt-2">
+              <p className="rh-error">
                 <TriangleAlert aria-hidden="true" />
                 <span>{errors.consent}</span>
               </p>
@@ -614,8 +543,12 @@ export function AgeBlockedNotice() {
   return (
     <main className="flex min-h-dvh w-full items-center justify-center p-4 sm:p-6">
       <section className="rh-glass rh-panel-in w-full max-w-md p-6 text-center sm:p-8">
-        <TriangleAlert aria-hidden="true" className="mx-auto" style={{ width: 22, height: 22, color: "var(--color-primary-soft)" }} />
-        <h1 className="mt-4 text-2xl font-bold text-white">
+        <TriangleAlert
+          aria-hidden="true"
+          className="mx-auto"
+          style={{ width: 22, height: 22, color: "var(--color-primary-soft)" }}
+        />
+        <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">
           You need to be 18 or older to use Rabbit Hole
         </h1>
         <Link href="/" className="rh-focus rh-primary-btn mt-6">
