@@ -29,7 +29,7 @@ export function Landing() {
       (CSS.supports("mask-image", "linear-gradient(#000, #000)") ||
         CSS.supports("-webkit-mask-image", "linear-gradient(#000, #000)"));
     const animClass = maskSupported ? "rh-anim" : "rh-anim-fade";
-    const animated = !reduce && !root.classList.contains(animClass);
+    const animated = !reduce;
     if (animated) root.classList.add(animClass);
 
     let cancelled = false;
